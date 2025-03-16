@@ -1,14 +1,26 @@
 // src/App.jsx
-import Chart from './components/Chart';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '/src/contexts/AuthContext';
+import Dashboard from './components/Dashboard';
+import AuthContainer from './components/auth/AuthContainer';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-8">
-            <div className="max-w-4xl w-full flex flex-col items-center">
-                <h1 className="text-3xl font-bold underline mb-8">The purple rabbit is radical</h1>
-                <Chart />
-            </div>
-        </div>
+        <BrowserRouter>
+            <AuthProvider>
+                <Routes>
+                    <Route path="/login" element={<AuthContainer />} />
+                    <Route path="/dashboard" element={
+                        <ProtectedRoute>
+                            <Dashboard />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/" element={<Navigate replace to="/dashboard" />} />
+                </Routes>
+            </AuthProvider>
+        </BrowserRouter>
     );
 }
 
