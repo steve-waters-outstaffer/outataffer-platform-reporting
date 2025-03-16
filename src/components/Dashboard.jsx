@@ -1,9 +1,21 @@
 // src/components/Dashboard.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+    AppBar,
+    Toolbar,
+    Typography,
+    Button,
+    Container,
+    Paper,
+    Box,
+    Card,
+    CardContent
+} from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { logoutUser } from '../services/AuthService.js';
 import Chart from './Chart';
+import { CustomColors } from '../theme';
 
 const Dashboard = () => {
     const { currentUser } = useAuth();
@@ -19,44 +31,48 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <nav className="bg-white shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between h-16">
-                        <div className="flex items-center">
-                            <h1 className="text-xl font-semibold">Firebase + Vite Template</h1>
-                        </div>
-                        <div className="flex items-center">
-                            <span className="mr-4 text-sm text-gray-600">
-                                {currentUser?.email}
-                            </span>
-                            <button
-                                onClick={handleLogout}
-                                className="bg-white hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 border border-gray-300 rounded shadow text-sm"
-                            >
-                                Logout
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: CustomColors.UIGrey100 }}>
+            <AppBar position="static" color="secondary">
+                <Toolbar>
+                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                        Firebase + Vite Template
+                    </Typography>
+                    <Typography variant="bodySmall" sx={{ mr: 2 }}>
+                        {currentUser?.email}
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        color="default"
+                        onClick={handleLogout}
+                        size="small"
+                    >
+                        Logout
+                    </Button>
+                </Toolbar>
+            </AppBar>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                <div className="bg-white shadow rounded-lg p-6 mb-6">
-                    <h2 className="text-2xl font-semibold mb-4">Dashboard</h2>
-                    <p className="text-gray-600 mb-4">
+            <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+                <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
+                    <Typography variant="h4" component="h2" gutterBottom>
+                        Dashboard
+                    </Typography>
+                    <Typography variant="body" color="text.secondary" gutterBottom>
                         Welcome to your dashboard! Below is an example chart created with ECharts.
-                    </p>
-                </div>
+                    </Typography>
+                </Paper>
 
-                <div className="bg-white shadow rounded-lg p-6">
-                    <h3 className="text-xl font-semibold mb-4">Sample Chart</h3>
-                    <div className="h-96">
-                        <Chart />
-                    </div>
-                </div>
-            </main>
-        </div>
+                <Card>
+                    <CardContent>
+                        <Typography variant="h5" component="h3" gutterBottom>
+                            Sample Chart
+                        </Typography>
+                        <Box sx={{ height: 400 }}>
+                            <Chart />
+                        </Box>
+                    </CardContent>
+                </Card>
+            </Container>
+        </Box>
     );
 };
 

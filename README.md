@@ -1,16 +1,18 @@
-# Firebase Vite Template
+# Firebase Vite Template with MUI Theme
 
-A modern, production-ready template for quickly building Firebase applications with React, Vite, Tailwind CSS v4, and ECharts.
+A modern, production-ready template for quickly building Firebase applications with React, Vite, Material UI, Tailwind CSS v4, and ECharts.
 
 ## Features
 
 - 🔥 **Firebase Integration** - Authentication, Storage, and optional Firestore
 - 🚀 **Vite** - Lightning fast builds and HMR
-- 🎨 **Tailwind CSS v4** - The latest version of Tailwind for styling
+- 🎨 **Material UI Theme** - Customized MUI theme for consistent styling
+- 💅 **Tailwind CSS v4** - Utility classes for additional styling flexibility
 - 📊 **ECharts** - Powerful charting library with geographic map support
 - 🔒 **Authentication** - Email/password and Google sign-in with protected routes
-- 📱 **Responsive Design** - Mobile-friendly interface
+- 📱 **Responsive Design** - Mobile-friendly interface using MUI and Tailwind
 - 🧩 **Component Structure** - Organized component architecture
+- 🎭 **Custom Theme** - Pre-configured MUI theme with consistent styling
 
 ## Technologies
 
@@ -18,19 +20,111 @@ A modern, production-ready template for quickly building Firebase applications w
 |--------------------|---------------------------------------------|
 | Framework          | React 19                                    |
 | Build Tool         | Vite 6.2+                                   |
+| UI Library         | Material UI 5.15+                           |
 | CSS Framework      | Tailwind CSS v4                             |
 | Authentication     | Firebase Authentication                      |
 | Database (Optional)| Firestore                                   |
 | File Storage       | Firebase Storage                            |
-| Routing            | React Router v6                             |
+| Routing            | React Router v7                             |
 | Charts             | ECharts                                     |
 
 ## Getting Started
 
 1. Clone this repository
 2. Install dependencies:
-   ```bash
-   npm install
+   ```
+
+## Project Structure
+
+```
+project-root/
+├── src/
+│   ├── components/
+│   │   ├── auth/
+│   │   │   ├── AuthContainer.jsx   # Auth wrapper component
+│   │   │   ├── LoginComponent.jsx  # Login form
+│   │   │   ├── RegisterComponent.jsx # Registration form
+│   │   │   └── ProtectedRoute.jsx  # Route protection component
+│   │   ├── common/
+│   │   │   └── LinkBehaviour.jsx   # Custom link for MUI integration
+│   │   ├── Chart.jsx               # ECharts component
+│   │   └── Dashboard.jsx           # Main app dashboard
+│   ├── contexts/
+│   │   └── AuthContext.jsx         # Authentication context
+│   ├── services/
+│   │   └── authService.js          # Auth helper functions
+│   ├── App.jsx                     # Main application component
+│   ├── main.jsx                    # Application entry point
+│   ├── firebase.js                 # Firebase configuration
+│   ├── theme.js                    # MUI theme configuration
+│   └── index.css                   # Global styles with Tailwind
+├── public/
+│   └── favicon.ico                 # App favicon
+├── index.html                      # HTML template
+├── package.json                    # Dependencies and scripts
+├── tailwind.config.js              # Tailwind configuration
+├── vite.config.js                  # Vite configuration
+├── firebase.json                   # Firebase configuration
+└── .firebaserc                     # Firebase project settings
+```
+
+## Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build locally
+- `npm run lint` - Run ESLint to check code
+
+## Customization
+
+### Theme Customization
+
+You can customize the theme by modifying `src/theme.js`. The theme is built on Material UI's theming system, allowing you to:
+
+- Change color palettes
+- Adjust typography settings
+- Modify component styles
+- Update spacing and sizing
+
+### Styling Approach
+
+This template uses a hybrid approach to styling:
+
+1. **MUI Components**: Styled through the theme system
+2. **Tailwind CSS**: For utility-based styling needs
+3. **CSS Modules**: Available for component-specific styles
+
+### Authentication
+
+The template includes both email/password and Google authentication. To customize:
+- Edit `src/components/auth/` components
+- Modify `src/services/authService.js` to add or remove auth providers
+
+### Charts
+
+ECharts is included for data visualization. Example usage is in `src/components/Chart.jsx`.
+- Geographic maps support is available for visualizing global data
+- Customize chart options in the Chart component
+
+## Deployment
+
+1. Install Firebase CLI: `npm install -g firebase-tools`
+2. Login to Firebase: `firebase login`
+3. Initialize Firebase: `firebase init` (select Hosting)
+4. Build the project: `npm run build`
+5. Deploy to Firebase: `firebase deploy`
+
+## Security Considerations
+
+- Always implement proper security rules in Firebase
+- For Firestore, use rules based on user authentication
+- For Storage, restrict access to authenticated users
+- Consider adding Firebase Functions for server-side logic
+
+## License
+
+This template is MIT licensed.bash
+npm install
    ```
 3. Update Firebase configuration in `src/firebase.js` with your Firebase project details
 4. Start the development server:
@@ -81,79 +175,57 @@ const firebaseConfig = {
 };
 ```
 
-## Project Structure
+## Theme Usage
 
+This template comes with a pre-configured Material UI theme based on the Outstaffer design system. The theme includes:
+
+- **Color System**: A comprehensive color palette with primary, secondary, and UI colors
+- **Typography**: Font families, sizes, weights, and line heights
+- **Spacing**: Consistent spacing scale
+- **Component Styling**: Pre-styled MUI components
+- **Responsive Design**: Mobile-first approach
+
+### Using the Theme
+
+The theme is automatically applied to all Material UI components. To use theme values in your components:
+
+```jsx
+import { useTheme } from '@mui/material/styles';
+import { CustomColors } from '../theme';
+
+function MyComponent() {
+  const theme = useTheme();
+  
+  return (
+    <div style={{ 
+      backgroundColor: theme.palette.background.default,
+      color: CustomColors.MidnightBlue,
+      padding: theme.spacing(2)
+    }}>
+      Themed content
+    </div>
+  );
+}
 ```
-project-root/
-├── src/
-│   ├── components/
-│   │   ├── auth/
-│   │   │   ├── AuthContainer.jsx   # Auth wrapper component
-│   │   │   ├── Login.jsx           # Login form
-│   │   │   ├── Register.jsx        # Registration form
-│   │   │   └── ProtectedRoute.jsx  # Route protection component
-│   │   ├── Chart.jsx               # ECharts component
-│   │   └── Dashboard.jsx           # Main app dashboard
-│   ├── contexts/
-│   │   └── AuthContext.jsx         # Authentication context
-│   ├── services/
-│   │   └── authService.js          # Auth helper functions
-│   ├── App.jsx                     # Main application component
-│   ├── main.jsx                    # Application entry point
-│   ├── firebase.js                 # Firebase configuration
-│   └── index.css                   # Global styles with Tailwind
-├── public/
-│   └── favicon.ico                 # App favicon
-├── index.html                      # HTML template
-├── package.json                    # Dependencies and scripts
-├── tailwind.config.js              # Tailwind configuration
-├── vite.config.js                  # Vite configuration
-├── firebase.json                   # Firebase configuration
-└── .firebaserc                     # Firebase project settings
+
+### Theme Constants
+
+The theme exports several constants that can be imported and used:
+
+```jsx
+import { 
+  CustomColors,
+  FontSize, 
+  Spacing, 
+  BorderRadius 
+} from '../theme';
+
+// Usage example
+<div style={{ 
+  fontSize: FontSize.Large,
+  padding: Spacing.Medium,
+  borderRadius: BorderRadius.Rounded
+}}>
+  Content with theme constants
+</div>
 ```
-
-## Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build locally
-- `npm run lint` - Run ESLint to check code
-
-## Customization
-
-### Styling
-
-This template uses Tailwind CSS v4 for styling. You can customize the design by editing:
-- `tailwind.config.js` for theme customization
-- `src/index.css` for global styles
-
-### Authentication
-
-The template includes both email/password and Google authentication. To customize:
-- Edit `src/components/auth/` components
-- Modify `src/services/authService.js` to add or remove auth providers
-
-### Charts
-
-ECharts is included for data visualization. Example usage is in `src/components/Chart.jsx`.
-- Geographic maps support is available for visualizing global data
-- Customize chart options in the Chart component
-
-## Deployment
-
-1. Install Firebase CLI: `npm install -g firebase-tools`
-2. Login to Firebase: `firebase login`
-3. Initialize Firebase: `firebase init` (select Hosting)
-4. Build the project: `npm run build`
-5. Deploy to Firebase: `firebase deploy`
-
-## Security Considerations
-
-- Always implement proper security rules in Firebase
-- For Firestore, use rules based on user authentication
-- For Storage, restrict access to authenticated users
-- Consider adding Firebase Functions for server-side logic
-
-## License
-
-This template is MIT licensed.
