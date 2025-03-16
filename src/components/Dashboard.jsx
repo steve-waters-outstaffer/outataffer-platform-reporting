@@ -2,7 +2,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { logoutUser } from '../services/authService';
+import { logoutUser } from '../services/AuthService.js';
 import Chart from './Chart';
 
 const Dashboard = () => {
