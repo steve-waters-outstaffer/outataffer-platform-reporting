@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "margin-calculator-abead"
-  }
+    "default": "dashboards-ccc88",
+    "prod": "dashboards-ccc88"
+  },
+  "targets": {},
+  "etags": {}
 }

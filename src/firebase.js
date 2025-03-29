@@ -1,15 +1,24 @@
-// src/firebase.js
-import { initializeApp } from 'firebase/app';
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "AIzaSyA6P2VNQzFrN4cm2dcuAVgcXy18fDkSJ5w",
-    authDomain: "margin-calculator-abead.firebaseapp.com",
-    projectId: "margin-calculator-abead",
-    storageBucket: "margin-calculator-abead.appspot.com",
-    messagingSenderId: "1012777467429",
-    appId: "1:1012777467429:web:03976ed88c62817f7c89cc"
+    apiKey: "AIzaSyAvbjAPhYKblt3blB7kkXBn6C0bWe5lxeY",
+    authDomain: "dashboards-ccc88.firebaseapp.com",
+    projectId: "dashboards-ccc88",
+    storageBucket: "dashboards-ccc88.firebasestorage.app",
+    messagingSenderId: "141019688267",
+    appId: "1:141019688267:web:b92d943b0162b6c4348cce",
+    measurementId: "G-B8HJBBZ9D1"
 };
 
 // Initialize Firebase
-export const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+// Initialize Firebase
+export {app};
