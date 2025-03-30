@@ -130,26 +130,7 @@ def main():
     snapshot_date = datetime.now().date()
     logger.info(f"Processing plan and add-on adoption snapshot for: {snapshot_date}")
 
-    # 1. Load status mapping table
-    status_mapping_query = """
-    SELECT contract_status, mapped_status
-    FROM `outstaffer-app-prod.lookup_tables.contract_status_mapping`
-    """
-    status_mapping_df = client.query(status_mapping_query).to_dataframe()
-    logger.info(f"Loaded {len(status_mapping_df)} status mappings")
-
-    # 2. Load plan metadata
-    plans_query = """
-    SELECT 
-        id as plan_id, 
-        name as plan_name,
-        category as plan_category
-    FROM `outstaffer-app-prod.firestore_exports.plans`
-    """
-    plans_df = client.query(plans_query).to_dataframe()
-    logger.info(f"Loaded {len(plans_df)} plan definitions")
-
-    # 3. Load add-on metadata from the actual table - including the meta field
+    # 1. Load add-on metadata from the actual table - including the meta field
     addons_query = """
     SELECT 
         id as addon_id,
@@ -165,7 +146,11 @@ def main():
     addons_df = client.query(addons_query).to_dataframe()
     logger.info(f"Loaded {len(addons_df)} add-on definitions")
 
-    # 4. Load plan categories
+    # Debug output to check hardware add-ons in the reference data
+    hardware_addon_ids = set(addons_df[addons_df['addon_type'] == 'HARDWARE']['addon_id'])
+    logger.info(f"Hardware add-on IDs in reference data: {hardware_addon_ids}")
+
+    # 2. Load plan categories
     categories_query = """
     SELECT 
         id as category_id,
@@ -177,77 +162,115 @@ def main():
     categories_df = client.query(categories_query).to_dataframe()
     logger.info(f"Loaded {len(categories_df)} plan categories")
 
-    # 5. Load active contracts with filtered conditions
+    # 3. Load plan metadata
+    plans_query = """
+    SELECT 
+        id as plan_id, 
+        name as plan_name,
+        category as plan_category
+    FROM `outstaffer-app-prod.firestore_exports.plans`
+    """
+    plans_df = client.query(plans_query).to_dataframe()
+    logger.info(f"Loaded {len(plans_df)} plan definitions")
+
+    # 4. Load ONLY active contracts with filtered conditions in the query
     contracts_query = """
     SELECT 
         ec.id as contract_id,
         ec.companyId,
         ec.status as contract_status,
         ec.employmentLocation.country as country,
-        ec.plan as plan_id,
+        ec.plan, -- Include the plan field
+        ec.plan.type as plan_id, -- Extract the plan type ID
         ec.createdAt,
-        ec.updatedAt,
-        ec.benefits
+        ec.updatedAt
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     JOIN `outstaffer-app-prod.firestore_exports.companies` c
       ON ec.companyId = c.id
+    JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` cm
+      ON ec.status = cm.contract_status
     WHERE (c.demoCompany IS NULL OR c.demoCompany = FALSE)
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
+      AND cm.mapped_status = 'Active'
     """
-    contracts_df = client.query(contracts_query).to_dataframe()
-    logger.info(f"Loaded {len(contracts_df)} employee contracts")
+    active_contracts_df = client.query(contracts_query).to_dataframe()
+    logger.info(f"Loaded {len(active_contracts_df)} active contracts")
 
-    # 6. Merge with status mapping to identify active contracts
-    contracts_df = contracts_df.merge(
-        status_mapping_df,
-        left_on='contract_status',
-        right_on='contract_status',
-        how='left'
-    )
+    # Debug the plan field structure in a few contracts
+    hardware_keys_found = set()
+    for i, (_, contract) in enumerate(active_contracts_df.head(3).iterrows()):
+        plan_data = contract['plan']
+        logger.info(f"Sample contract {i+1} plan: {type(plan_data)}")
 
-    # Filter to active contracts
-    active_contracts_df = contracts_df[contracts_df['mapped_status'] == 'Active'].copy()
-    logger.info(f"Filtered to {len(active_contracts_df)} active contracts")
+        if isinstance(plan_data, dict):
+            logger.info(f"  Plan keys: {plan_data.keys()}")
+            if 'hardwareAddons' in plan_data:
+                logger.info(f"  Hardware addons: {plan_data['hardwareAddons']}")
+                # Collect all hardware keys
+                if isinstance(plan_data['hardwareAddons'], list):
+                    for addon in plan_data['hardwareAddons']:
+                        if isinstance(addon, dict) and 'key' in addon:
+                            hardware_keys_found.add(addon['key'])
 
-    # 7. Get plan details directly rather than merging to avoid dictionary issues
+    logger.info(f"Hardware add-on keys found in sample contracts: {hardware_keys_found}")
+
+    # Check for mismatches
+    hardware_mismatches = hardware_keys_found - hardware_addon_ids
+    logger.info(f"Keys in contracts but not in add-ons dataframe: {hardware_mismatches}")
+
+    # 5. Get plan details directly rather than merging to avoid dictionary issues
     def get_plan_name(plan_id):
+        if plan_id is None:
+            return "Unknown Plan"
         plan_rows = plans_df[plans_df['plan_id'] == plan_id]
         if len(plan_rows) > 0:
             return plan_rows.iloc[0]['plan_name']
         return plan_id  # Default to ID if not found
 
-    active_contracts_df['plan_name'] = active_contracts_df['plan_id'].apply(get_plan_name)
+    # Apply the function safely with null handling
+    active_contracts_df['plan_name'] = active_contracts_df['plan_id'].apply(
+        lambda x: get_plan_name(x) if pd.notna(x) else "Unknown Plan"
+    )
 
-    # 8. Extract add-ons from benefits field
-    def extract_device_type(benefits):
-        if not isinstance(benefits, dict):
+    # 6. Extract add-ons from plan field
+    def extract_device_type(plan):
+        if plan is None or not isinstance(plan, dict):
             return None
-        return benefits.get('device', {}).get('type')
+        return plan.get('deviceUpgrade')
 
-    def extract_hardware_addons(benefits):
-        if benefits is None or not isinstance(benefits, dict):
+    def extract_hardware_addons(plan):
+        if plan is None or not isinstance(plan, dict):
             return []
-        hardware = benefits.get('addOns', {}).get('HARDWARE', [])
+        hardware = plan.get('hardwareAddons', [])
         return hardware if isinstance(hardware, list) else []
 
-    def extract_software_addons(benefits):
-        if not isinstance(benefits, dict):
+    def extract_software_addons(plan):
+        if plan is None or not isinstance(plan, dict):
             return []
-        software = benefits.get('addOns', {}).get('SOFTWARE', [])
+        software = plan.get('softwareAddons', [])
         return software if isinstance(software, list) else []
 
-    def extract_membership_addons(benefits):
-        if not isinstance(benefits, dict):
+    def extract_membership_addons(plan):
+        if plan is None or not isinstance(plan, dict):
             return []
-        membership = benefits.get('addOns', {}).get('MEMBERSHIP', [])
+        membership = plan.get('membershipAddons', [])
         return membership if isinstance(membership, list) else []
 
-    active_contracts_df['device_type'] = active_contracts_df['benefits'].apply(extract_device_type)
-    active_contracts_df['hardware_addons'] = active_contracts_df['benefits'].apply(extract_hardware_addons)
-    active_contracts_df['software_addons'] = active_contracts_df['benefits'].apply(extract_software_addons)
-    active_contracts_df['membership_addons'] = active_contracts_df['benefits'].apply(extract_membership_addons)
+    # Extract add-ons from plan
+    active_contracts_df['device_type'] = active_contracts_df['plan'].apply(extract_device_type)
+    active_contracts_df['hardware_addons'] = active_contracts_df['plan'].apply(extract_hardware_addons)
+    active_contracts_df['software_addons'] = active_contracts_df['plan'].apply(extract_software_addons)
+    active_contracts_df['membership_addons'] = active_contracts_df['plan'].apply(extract_membership_addons)
 
-    # 9. Generate plan adoption metrics
+    # Check extraction results
+    total_devices = active_contracts_df['device_type'].notna().sum()
+    total_hw = sum(len(addons) for addons in active_contracts_df['hardware_addons'] if isinstance(addons, list))
+    total_sw = sum(len(addons) for addons in active_contracts_df['software_addons'] if isinstance(addons, list))
+    total_mb = sum(len(addons) for addons in active_contracts_df['membership_addons'] if isinstance(addons, list))
+
+    logger.info(f"Extracted {total_devices} devices, {total_hw} hardware add-ons, {total_sw} software add-ons, {total_mb} membership add-ons")
+
+    # 7. Generate plan adoption metrics
     plan_metrics = {
         'snapshot_date': snapshot_date,
         'metrics': []
@@ -288,9 +311,12 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 10. Process device choices with dynamic OS and persona detection
+    # 8. Process device choices with dynamic OS and persona detection
     device_counts = active_contracts_df['device_type'].value_counts().reset_index()
     device_counts.columns = ['device_id', 'device_count']
+
+    # Debug device counts
+    logger.info(f"Device counts: {device_counts.to_dict(orient='records')}")
 
     # Initialize OS and persona dictionaries
     os_counts = {}
@@ -358,7 +384,7 @@ def main():
 
     plan_metrics['metrics'].extend(device_metrics)
 
-    # 11. Process hardware add-ons with dynamic grouping
+    # 9. Process hardware add-ons with dynamic grouping
     # Initialize counter for all hardware add-ons
     hardware_addon_counts = {}
     hardware_group_counts = {}  # For group totals
@@ -368,6 +394,9 @@ def main():
 
     # Get all hardware addons
     hardware_addons = addons_df[addons_df['addon_type'] == 'HARDWARE'].copy()
+
+    # Debug hardware add-ons
+    logger.info(f"Hardware add-ons reference data: {hardware_addons[['addon_id', 'addon_label']].to_dict(orient='records')}")
 
     # Build group mapping first
     for _, addon in hardware_addons.iterrows():
@@ -380,31 +409,42 @@ def main():
         if group_name not in hardware_group_counts:
             hardware_group_counts[group_name] = 0
 
-    # Count occurrences in contracts
+    # Count occurrences in contracts - Debug and fix issue with hardware add-ons
+    hardware_keys_in_contracts = []
     for _, contract in active_contracts_df.iterrows():
         hardware_addons_list = contract['hardware_addons']
+        if not isinstance(hardware_addons_list, list):
+            logger.info(f"Non-list hardware addons found: {type(hardware_addons_list)}")
+            continue
+
         for addon in hardware_addons_list:
-            if isinstance(addon, dict) and 'type' in addon:
-                addon_type = addon['type']
-                if addon_type in hardware_addon_counts:
-                    hardware_addon_counts[addon_type] += 1
+            if isinstance(addon, dict) and 'key' in addon:
+                addon_key = addon['key']
+                quantity = addon.get('quantity', 1)
+                hardware_keys_in_contracts.append(addon_key)
+
+                if addon_key in hardware_addon_counts:
+                    hardware_addon_counts[addon_key] += quantity
 
                     # Also increment the group counter if this item belongs to a group
-                    if addon_type in hardware_groups:
-                        group_name = hardware_groups[addon_type]
-                        hardware_group_counts[group_name] += 1
+                    if addon_key in hardware_groups:
+                        group_name = hardware_groups[addon_key]
+                        hardware_group_counts[group_name] += quantity
                 else:
                     # Add any hardware types not in our add-ons table
-                    hardware_addon_counts[addon_type] = 1
+                    hardware_addon_counts[addon_key] = quantity
 
                     # Try to determine group dynamically
-                    addon_data = next((a for a in hardware_addons_list if a.get('type') == addon_type), {})
-                    addon_label = addon_data.get('label', '')
-                    group_name = get_hardware_group(addon_type, addon_label, None)
+                    group_name = get_hardware_group(addon_key, addon_key, None)  # Use key as label for unknown items
 
                     if group_name not in hardware_group_counts:
                         hardware_group_counts[group_name] = 0
-                    hardware_group_counts[group_name] += 1
+                    hardware_group_counts[group_name] += quantity
+
+    # Debug hardware counts
+    logger.info(f"Hardware keys found in contracts: {set(hardware_keys_in_contracts)}")
+    logger.info(f"Hardware addon counts: {hardware_addon_counts}")
+    logger.info(f"Hardware group counts: {hardware_group_counts}")
 
     # Add individual hardware items to metrics
     for addon_id, count in hardware_addon_counts.items():
@@ -433,7 +473,7 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 12. Process software add-ons
+    # 10. Process software add-ons - UPDATED for the new plan structure
     software_addon_counts = {}
 
     # Initialize counts for all software add-ons
@@ -441,16 +481,23 @@ def main():
         software_addon_counts[addon['addon_id']] = 0
 
     # Count occurrences in contracts
+    software_keys_in_contracts = []
     for _, contract in active_contracts_df.iterrows():
         software_addons = contract['software_addons']
-        for addon in software_addons:
-            if isinstance(addon, dict) and 'type' in addon:
-                addon_type = addon['type']
-                if addon_type in software_addon_counts:
-                    software_addon_counts[addon_type] += 1
-                else:
-                    # Add any software types not in our add-ons table
-                    software_addon_counts[addon_type] = 1
+        if not isinstance(software_addons, list):
+            continue
+
+        for addon_id in software_addons:
+            software_keys_in_contracts.append(addon_id)
+            if addon_id in software_addon_counts:
+                software_addon_counts[addon_id] += 1
+            else:
+                # Add any software types not in our add-ons table
+                software_addon_counts[addon_id] = 1
+
+    # Debug software counts
+    logger.info(f"Software keys found in contracts: {set(software_keys_in_contracts)}")
+    logger.info(f"Software addon counts: {software_addon_counts}")
 
     # Add to metrics
     for addon_id, count in software_addon_counts.items():
@@ -465,7 +512,7 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 13. Process membership add-ons
+    # 11. Process membership add-ons - UPDATED for the new plan structure
     membership_addon_counts = {}
 
     # Initialize counts for all membership add-ons
@@ -473,16 +520,23 @@ def main():
         membership_addon_counts[addon['addon_id']] = 0
 
     # Count occurrences in contracts
+    membership_keys_in_contracts = []
     for _, contract in active_contracts_df.iterrows():
         membership_addons = contract['membership_addons']
-        for addon in membership_addons:
-            if isinstance(addon, dict) and 'type' in addon:
-                addon_type = addon['type']
-                if addon_type in membership_addon_counts:
-                    membership_addon_counts[addon_type] += 1
-                else:
-                    # Add any membership types not in our add-ons table
-                    membership_addon_counts[addon_type] = 1
+        if not isinstance(membership_addons, list):
+            continue
+
+        for addon_id in membership_addons:
+            membership_keys_in_contracts.append(addon_id)
+            if addon_id in membership_addon_counts:
+                membership_addon_counts[addon_id] += 1
+            else:
+                # Add any membership types not in our add-ons table
+                membership_addon_counts[addon_id] = 1
+
+    # Debug membership counts
+    logger.info(f"Membership keys found in contracts: {set(membership_keys_in_contracts)}")
+    logger.info(f"Membership addon counts: {membership_addon_counts}")
 
     # Add to metrics
     for addon_id, count in membership_addon_counts.items():
@@ -497,7 +551,7 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 14. Add dynamic OS distribution metrics
+    # 12. Add dynamic OS distribution metrics
     for os_type, count in os_counts.items():
         plan_metrics['metrics'].append({
             'metric_type': 'os_choice',
@@ -507,7 +561,7 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 15. Add dynamic user persona metrics
+    # 13. Add dynamic user persona metrics
     for persona, count in persona_counts.items():
         plan_metrics['metrics'].append({
             'metric_type': 'user_persona',
@@ -517,7 +571,7 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 16. Convert metrics to DataFrame for BigQuery
+    # 14. Convert metrics to DataFrame for BigQuery
     metrics_rows = []
     for metric in plan_metrics['metrics']:
         metrics_rows.append({
@@ -537,7 +591,13 @@ def main():
         count = len(metrics_df[metrics_df['metric_type'] == metric_type])
         logger.info(f"  - {metric_type}: {count} items")
 
-    # 17. Write to BigQuery
+    # Log metrics with non-zero counts
+    non_zero_metrics = metrics_df[metrics_df['count'] > 0]
+    logger.info(f"Metrics with non-zero counts: {len(non_zero_metrics)} of {len(metrics_df)}")
+    if len(non_zero_metrics) > 0:
+        logger.info(f"Sample non-zero metrics: {non_zero_metrics.head(5)[['metric_type', 'id', 'count']].to_dict(orient='records')}")
+
+    # 15. Write to BigQuery
     table_id = 'outstaffer-app-prod.dashboard_metrics.plan_addon_adoption'
 
     # Define the schema
