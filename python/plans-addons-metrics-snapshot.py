@@ -1,9 +1,12 @@
 import pandas as pd
+import numpy as np
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from google.cloud import bigquery
 import logging
 import sys
-from datetime import datetime
-import re
+import json
+from tabulate import tabulate  # For displaying results locally
 
 # Set up logging
 logging.basicConfig(
@@ -125,6 +128,102 @@ def extract_meta_field(meta_field):
 
     return {}
 
+def extract_device_type(plan):
+    """Extract device type from plan safely"""
+    if plan is None or not isinstance(plan, dict):
+        return None
+    return plan.get('deviceUpgrade')
+
+def extract_hardware_addons(plan):
+    """
+    Extract hardware add-ons from plan with proper structure handling
+    Returns a list of dictionaries with 'key' and 'quantity' fields
+    """
+    if plan is None or not isinstance(plan, dict):
+        return []
+
+    hardware_addons = plan.get('hardwareAddons', [])
+
+    # Ensure it's a list
+    if not isinstance(hardware_addons, list):
+        return []
+
+    # Return a standardized format for each hardware add-on
+    result = []
+    for addon in hardware_addons:
+        if isinstance(addon, dict) and 'key' in addon:
+            result.append({
+                'key': addon.get('key', ''),
+                'quantity': addon.get('quantity', 1)  # Default to 1 if not specified
+            })
+        elif isinstance(addon, str):  # Handle case where it's just a string ID
+            result.append({
+                'key': addon,
+                'quantity': 1
+            })
+
+    return result
+
+def extract_software_addons(plan):
+    """
+    Extract software add-ons from plan with proper structure handling
+    Returns a list of dictionaries with 'key' and 'quantity' fields
+    """
+    if plan is None or not isinstance(plan, dict):
+        return []
+
+    software_addons = plan.get('softwareAddons', [])
+
+    # Ensure it's a list
+    if not isinstance(software_addons, list):
+        return []
+
+    # Return a standardized format for each software add-on
+    result = []
+    for addon in software_addons:
+        if isinstance(addon, dict) and 'key' in addon:
+            result.append({
+                'key': addon.get('key', ''),
+                'quantity': addon.get('quantity', 1)  # Default to 1 if not specified
+            })
+        elif isinstance(addon, str):  # Handle case where it's just a string ID
+            result.append({
+                'key': addon,
+                'quantity': 1
+            })
+
+    return result
+
+def extract_membership_addons(plan):
+    """
+    Extract membership add-ons from plan with proper structure handling
+    Returns a list of dictionaries with 'key' and 'quantity' fields
+    """
+    if plan is None or not isinstance(plan, dict):
+        return []
+
+    membership_addons = plan.get('membershipAddons', [])
+
+    # Ensure it's a list
+    if not isinstance(membership_addons, list):
+        return []
+
+    # Return a standardized format for each membership add-on
+    result = []
+    for addon in membership_addons:
+        if isinstance(addon, dict) and 'key' in addon:
+            result.append({
+                'key': addon.get('key', ''),
+                'quantity': addon.get('quantity', 1)  # Default to 1 if not specified
+            })
+        elif isinstance(addon, str):  # Handle case where it's just a string ID
+            result.append({
+                'key': addon,
+                'quantity': 1
+            })
+
+    return result
+
 def main():
     # Define snapshot date as today
     snapshot_date = datetime.now().date()
@@ -198,25 +297,65 @@ def main():
 
     # Debug the plan field structure in a few contracts
     hardware_keys_found = set()
+    software_keys_found = set()
+    membership_keys_found = set()
+
     for i, (_, contract) in enumerate(active_contracts_df.head(3).iterrows()):
         plan_data = contract['plan']
         logger.info(f"Sample contract {i+1} plan: {type(plan_data)}")
 
         if isinstance(plan_data, dict):
             logger.info(f"  Plan keys: {plan_data.keys()}")
+
+            # Debug hardware add-ons
             if 'hardwareAddons' in plan_data:
-                logger.info(f"  Hardware addons: {plan_data['hardwareAddons']}")
+                hw_addons = plan_data['hardwareAddons']
+                logger.info(f"  Hardware addons type: {type(hw_addons)}")
+                logger.info(f"  Hardware addons: {hw_addons}")
+
                 # Collect all hardware keys
-                if isinstance(plan_data['hardwareAddons'], list):
-                    for addon in plan_data['hardwareAddons']:
+                if isinstance(hw_addons, list):
+                    for addon in hw_addons:
                         if isinstance(addon, dict) and 'key' in addon:
                             hardware_keys_found.add(addon['key'])
+                        elif isinstance(addon, str):
+                            hardware_keys_found.add(addon)
+
+            # Debug software add-ons
+            if 'softwareAddons' in plan_data:
+                sw_addons = plan_data['softwareAddons']
+                logger.info(f"  Software addons type: {type(sw_addons)}")
+                logger.info(f"  Software addons: {sw_addons}")
+
+                # Collect all software keys
+                if isinstance(sw_addons, list):
+                    for addon in sw_addons:
+                        if isinstance(addon, dict) and 'key' in addon:
+                            software_keys_found.add(addon['key'])
+                        elif isinstance(addon, str):
+                            software_keys_found.add(addon)
+
+            # Debug membership add-ons
+            if 'membershipAddons' in plan_data:
+                mem_addons = plan_data['membershipAddons']
+                logger.info(f"  Membership addons type: {type(mem_addons)}")
+                logger.info(f"  Membership addons: {mem_addons}")
+
+                # Collect all membership keys
+                if isinstance(mem_addons, list):
+                    for addon in mem_addons:
+                        if isinstance(addon, dict) and 'key' in addon:
+                            membership_keys_found.add(addon['key'])
+                        elif isinstance(addon, str):
+                            membership_keys_found.add(addon)
 
     logger.info(f"Hardware add-on keys found in sample contracts: {hardware_keys_found}")
+    logger.info(f"Software add-on keys found in sample contracts: {software_keys_found}")
+    logger.info(f"Membership add-on keys found in sample contracts: {membership_keys_found}")
 
     # Check for mismatches
     hardware_mismatches = hardware_keys_found - hardware_addon_ids
-    logger.info(f"Keys in contracts but not in add-ons dataframe: {hardware_mismatches}")
+    logger.info(f"Hardware keys in contracts but not in add-ons dataframe: {hardware_mismatches}")
 
     # 5. Get plan details directly rather than merging to avoid dictionary issues
     def get_plan_name(plan_id):
@@ -233,30 +372,6 @@ def main():
     )
 
     # 6. Extract add-ons from plan field
-    def extract_device_type(plan):
-        if plan is None or not isinstance(plan, dict):
-            return None
-        return plan.get('deviceUpgrade')
-
-    def extract_hardware_addons(plan):
-        if plan is None or not isinstance(plan, dict):
-            return []
-        hardware = plan.get('hardwareAddons', [])
-        return hardware if isinstance(hardware, list) else []
-
-    def extract_software_addons(plan):
-        if plan is None or not isinstance(plan, dict):
-            return []
-        software = plan.get('softwareAddons', [])
-        return software if isinstance(software, list) else []
-
-    def extract_membership_addons(plan):
-        if plan is None or not isinstance(plan, dict):
-            return []
-        membership = plan.get('membershipAddons', [])
-        return membership if isinstance(membership, list) else []
-
-    # Extract add-ons from plan
     active_contracts_df['device_type'] = active_contracts_df['plan'].apply(extract_device_type)
     active_contracts_df['hardware_addons'] = active_contracts_df['plan'].apply(extract_hardware_addons)
     active_contracts_df['software_addons'] = active_contracts_df['plan'].apply(extract_software_addons)
@@ -264,9 +379,24 @@ def main():
 
     # Check extraction results
     total_devices = active_contracts_df['device_type'].notna().sum()
-    total_hw = sum(len(addons) for addons in active_contracts_df['hardware_addons'] if isinstance(addons, list))
-    total_sw = sum(len(addons) for addons in active_contracts_df['software_addons'] if isinstance(addons, list))
-    total_mb = sum(len(addons) for addons in active_contracts_df['membership_addons'] if isinstance(addons, list))
+
+    # Count hardware add-ons using the new extraction method
+    total_hw = 0
+    for addons in active_contracts_df['hardware_addons']:
+        if isinstance(addons, list):
+            total_hw += sum(addon.get('quantity', 1) for addon in addons)
+
+    # Count software add-ons using the new extraction method
+    total_sw = 0
+    for addons in active_contracts_df['software_addons']:
+        if isinstance(addons, list):
+            total_sw += sum(addon.get('quantity', 1) for addon in addons)
+
+    # Count membership add-ons using the new extraction method
+    total_mb = 0
+    for addons in active_contracts_df['membership_addons']:
+        if isinstance(addons, list):
+            total_mb += sum(addon.get('quantity', 1) for addon in addons)
 
     logger.info(f"Extracted {total_devices} devices, {total_hw} hardware add-ons, {total_sw} software add-ons, {total_mb} membership add-ons")
 
@@ -409,12 +539,11 @@ def main():
         if group_name not in hardware_group_counts:
             hardware_group_counts[group_name] = 0
 
-    # Count occurrences in contracts - Debug and fix issue with hardware add-ons
+    # Count occurrences in contracts with improved extraction
     hardware_keys_in_contracts = []
     for _, contract in active_contracts_df.iterrows():
         hardware_addons_list = contract['hardware_addons']
         if not isinstance(hardware_addons_list, list):
-            logger.info(f"Non-list hardware addons found: {type(hardware_addons_list)}")
             continue
 
         for addon in hardware_addons_list:
@@ -473,27 +602,35 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 10. Process software add-ons - UPDATED for the new plan structure
+    # 10. Process software add-ons with improved extraction
     software_addon_counts = {}
 
     # Initialize counts for all software add-ons
     for _, addon in addons_df[addons_df['addon_type'] == 'SOFTWARE'].iterrows():
         software_addon_counts[addon['addon_id']] = 0
 
-    # Count occurrences in contracts
+    # Count occurrences in contracts with improved extraction
     software_keys_in_contracts = []
     for _, contract in active_contracts_df.iterrows():
-        software_addons = contract['software_addons']
-        if not isinstance(software_addons, list):
+        software_addons_list = contract['software_addons']
+        if not isinstance(software_addons_list, list):
             continue
 
-        for addon_id in software_addons:
-            software_keys_in_contracts.append(addon_id)
-            if addon_id in software_addon_counts:
-                software_addon_counts[addon_id] += 1
+        for addon in software_addons_list:
+            if isinstance(addon, dict) and 'key' in addon:
+                addon_key = addon['key']
+                quantity = addon.get('quantity', 1)
+            else:
+                addon_key = addon
+                quantity = 1
+
+            software_keys_in_contracts.append(addon_key)
+
+            if addon_key in software_addon_counts:
+                software_addon_counts[addon_key] += quantity
             else:
                 # Add any software types not in our add-ons table
-                software_addon_counts[addon_id] = 1
+                software_addon_counts[addon_key] = quantity
 
     # Debug software counts
     logger.info(f"Software keys found in contracts: {set(software_keys_in_contracts)}")
@@ -512,27 +649,35 @@ def main():
             'percentage': float(count) / len(active_contracts_df) * 100 if len(active_contracts_df) > 0 else 0
         })
 
-    # 11. Process membership add-ons - UPDATED for the new plan structure
+    # 11. Process membership add-ons with improved extraction
     membership_addon_counts = {}
 
     # Initialize counts for all membership add-ons
     for _, addon in addons_df[addons_df['addon_type'] == 'MEMBERSHIP'].iterrows():
         membership_addon_counts[addon['addon_id']] = 0
 
-    # Count occurrences in contracts
+    # Count occurrences in contracts with improved extraction
     membership_keys_in_contracts = []
     for _, contract in active_contracts_df.iterrows():
-        membership_addons = contract['membership_addons']
-        if not isinstance(membership_addons, list):
+        membership_addons_list = contract['membership_addons']
+        if not isinstance(membership_addons_list, list):
             continue
 
-        for addon_id in membership_addons:
-            membership_keys_in_contracts.append(addon_id)
-            if addon_id in membership_addon_counts:
-                membership_addon_counts[addon_id] += 1
+        for addon in membership_addons_list:
+            if isinstance(addon, dict) and 'key' in addon:
+                addon_key = addon['key']
+                quantity = addon.get('quantity', 1)
+            else:
+                addon_key = addon
+                quantity = 1
+
+            membership_keys_in_contracts.append(addon_key)
+
+            if addon_key in membership_addon_counts:
+                membership_addon_counts[addon_key] += quantity
             else:
                 # Add any membership types not in our add-ons table
-                membership_addon_counts[addon_id] = 1
+                membership_addon_counts[addon_key] = quantity
 
     # Debug membership counts
     logger.info(f"Membership keys found in contracts: {set(membership_keys_in_contracts)}")
