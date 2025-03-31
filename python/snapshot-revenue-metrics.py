@@ -132,8 +132,11 @@ def main():
         FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
         LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
           ON ec.status = sm.contract_status
+        LEFT JOIN `outstaffer-app-prod.firestore_exports.companies` c
+          ON ec.companyId = c.id
         WHERE (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
-        AND ec.calculations IS NOT NULL AND ARRAY_LENGTH(ec.calculations) > 0
+          AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)  -- Exclude demo companies
+          AND ec.calculations IS NOT NULL AND ARRAY_LENGTH(ec.calculations) > 0
         """
 
         try:
