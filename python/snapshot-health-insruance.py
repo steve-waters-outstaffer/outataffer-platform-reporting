@@ -31,7 +31,7 @@ insurance_options_df = client.query("""
             CASE WHEN countryFieldOverrides.AU.isDisabled IS NOT NULL THEN countryFieldOverrides.AU.isDisabled ELSE FALSE END AS AU,
             CASE WHEN countryFieldOverrides.SG.isDisabled IS NOT NULL THEN countryFieldOverrides.SG.isDisabled ELSE FALSE END AS SG,
             CASE WHEN countryFieldOverrides.TH.isDisabled IS NOT NULL THEN countryFieldOverrides.TH.isDisabled ELSE FALSE END AS TH,
-            CASE WHEN countryFieldOverrides.IN.isDisabled IS NOT NULL THEN countryFieldOverrides.IN.isDisabled ELSE FALSE END AS IN,
+            CASE WHEN countryFieldOverrides.IN.isDisabled IS NOT NULL THEN countryFieldOverrides.IN.isDisabled ELSE FALSE END AS `IN`,
             CASE WHEN countryFieldOverrides.PH.isDisabled IS NOT NULL THEN countryFieldOverrides.PH.isDisabled ELSE FALSE END AS PH,
             CASE WHEN countryFieldOverrides.VN.isDisabled IS NOT NULL THEN countryFieldOverrides.VN.isDisabled ELSE FALSE END AS VN,
             CASE WHEN countryFieldOverrides.MY.isDisabled IS NOT NULL THEN countryFieldOverrides.MY.isDisabled ELSE FALSE END AS MY
