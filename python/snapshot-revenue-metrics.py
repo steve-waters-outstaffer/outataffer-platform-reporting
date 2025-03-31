@@ -77,15 +77,6 @@ def main():
             ec.benefits.healthInsurance AS health_plan,
             sm.mapped_status,
             
-            -- Latest calculation data
-            -- Get the most recent calculation for each contract
-            ARRAY(
-              SELECT AS STRUCT * 
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            )[OFFSET(0)] AS latest_calc,
-            
             -- Extract fee values directly using correct paths
             CAST(IFNULL((
               SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.EOR.amount
@@ -146,7 +137,15 @@ def main():
             # Log a sample of fee values to verify extraction
             sample_contracts = contracts_df.head(5)
             for idx, row in sample_contracts.iterrows():
-                logger.info(f"Contract {row['contract_id']} fees: EOR=${row['eor_fees']:.2f}, Device=${row['device_fees']:.2f}, Health=${row['health_fees']:.2f}")
+                logger.info(f"Contract {row['contract_id']} fees: EOR=${row['eor_fees']:.2f}, Device=${row['device_fees']:.2f}, Hardware=${row['hardware_fees']:.2f}, Health=${row['health_fees']:.2f}")
+
+            # Log hardware summary statistics to debug
+            hardware_stats = {
+                'contracts_with_nonzero_hardware': len(contracts_df[contracts_df['hardware_fees'] > 0]),
+                'total_hardware_fees': contracts_df['hardware_fees'].sum(),
+                'avg_hardware_fees': contracts_df[contracts_df['hardware_fees'] > 0]['hardware_fees'].mean() if len(contracts_df[contracts_df['hardware_fees'] > 0]) > 0 else 0
+            }
+            logger.info(f"Hardware stats: {hardware_stats}")
 
         except Exception as e:
             logger.error(f"Error loading contract data: {str(e)}")
@@ -221,6 +220,9 @@ def main():
         # In offboarding process
         offboarding_df = active_df[active_df['contract_category'] == 'offboarding']
 
+        # Revenue-generating contracts (active + offboarding, but not approved_not_started)
+        revenue_generating_df = active_df[active_df['contract_category'].isin(['active', 'offboarding'])]
+
         # Calculate days from approval to start for all contracts
         active_df['days_from_approval_to_start'] = (active_df['start_date'] - active_df['createdAt']).dt.days
 
@@ -252,17 +254,19 @@ def main():
             'approved_not_started': len(approved_not_started_df),
             'offboarding_contracts': len(offboarding_df),
             'total_contracts': len(active_df),  # Active, approved_not_started, and offboarding
+            'revenue_generating_contracts': len(revenue_generating_df),  # Active + offboarding
             'new_subscriptions': len(new_df),
             'churned_subscriptions': len(churned_df),
-            'retention_rate': (1 - len(churned_df) / len(current_active_df)) * 100 if len(current_active_df) > 0 else None,
-            'churn_rate': (len(churned_df) / len(current_active_df)) * 100 if len(current_active_df) > 0 else None,
-            'eor_fees_mrr': current_active_df['eor_fees_aud'].sum(),
-            'device_fees_mrr': current_active_df['device_fees_aud'].sum(),
-            'hardware_fees_mrr': current_active_df['hardware_fees_aud'].sum(),
-            'software_fees_mrr': current_active_df['software_fees_aud'].sum(),
-            'health_insurance_mrr': current_active_df['health_fees_aud'].sum(),
-            'placement_fees_mrr': current_active_df['placement_fees_aud'].sum(),
-            'total_customers': current_active_df['companyId'].nunique(),
+            'retention_rate': (1 - len(churned_df) / len(revenue_generating_df)) * 100 if len(revenue_generating_df) > 0 else None,
+            'churn_rate': (len(churned_df) / len(revenue_generating_df)) * 100 if len(revenue_generating_df) > 0 else None,
+            # Use revenue_generating_df (active + offboarding) for all revenue calculations
+            'eor_fees_mrr': revenue_generating_df['eor_fees_aud'].sum(),
+            'device_fees_mrr': revenue_generating_df['device_fees_aud'].sum(),
+            'hardware_fees_mrr': revenue_generating_df['hardware_fees_aud'].sum(),
+            'software_fees_mrr': revenue_generating_df['software_fees_aud'].sum(),
+            'health_insurance_mrr': revenue_generating_df['health_fees_aud'].sum(),
+            'placement_fees_monthly': new_df['placement_fees_aud'].sum(),  # Renamed to clarify it's monthly
+            'total_customers': revenue_generating_df['companyId'].nunique(),
             'new_customers_this_month': active_df[
                 (active_df['createdAt_company'] >= snapshot_month_start) &
                 (active_df['createdAt_company'] < next_month)
@@ -272,7 +276,7 @@ def main():
             'plan_change_rate': 0.0,  # Would need historical data to calculate
         }
 
-        # Add derived metrics
+        # Add derived metrics - Separating recurring revenue from one-time revenue
         metrics['total_mrr'] = (
                 metrics['eor_fees_mrr'] +
                 metrics['device_fees_mrr'] +
@@ -280,32 +284,50 @@ def main():
                 metrics['software_fees_mrr'] +
                 metrics['health_insurance_mrr']
         )
+
+        # Calculate total revenue (MRR + one-time fees)
+        metrics['total_monthly_revenue'] = metrics['total_mrr'] + metrics['placement_fees_monthly']
+
+        # Calculate ARR based on MRR only (not including one-time fees)
         metrics['total_arr'] = metrics['total_mrr'] * 12
+
+        # Average subscription value based on MRR
         metrics['avg_subscription_value'] = (
-            metrics['total_mrr'] / metrics['total_active_subscriptions']
-            if metrics['total_active_subscriptions'] > 0 else 0
+            metrics['total_mrr'] / metrics['revenue_generating_contracts']
+            if metrics['revenue_generating_contracts'] > 0 else 0
         )
 
+        # Calculate revenue component percentages based on total monthly revenue
+        if metrics['total_monthly_revenue'] > 0:
+            metrics['recurring_revenue_percentage'] = (metrics['total_mrr'] / metrics['total_monthly_revenue']) * 100
+            metrics['one_time_revenue_percentage'] = (metrics['placement_fees_monthly'] / metrics['total_monthly_revenue']) * 100
+        else:
+            metrics['recurring_revenue_percentage'] = 0
+            metrics['one_time_revenue_percentage'] = 0
+
+        # Calculate add-on revenue percentage (as % of MRR, not total revenue)
         addon_revenue = (
                 metrics['device_fees_mrr'] +
                 metrics['hardware_fees_mrr'] +
                 metrics['software_fees_mrr'] +
                 metrics['health_insurance_mrr']
         )
+
         metrics['addon_revenue_percentage'] = (
             addon_revenue / metrics['total_mrr'] * 100
             if metrics['total_mrr'] > 0 else 0
         )
 
-        # 7. Calculate add-on counts
-        metrics['laptops_count'] = current_active_df[current_active_df['device_fees'] > 0].shape[0]
-        metrics['monitors_count'] = 0  # Would need more detailed line item analysis
-        metrics['docks_count'] = 0     # Would need more detailed line item analysis
+        # 7. Calculate add-on counts - use revenue_generating_df for all add-on counts
+        # Count laptops as contracts with device fees
+        metrics['laptops_count'] = len(revenue_generating_df[revenue_generating_df['device_fees'] > 0])
 
-        metrics['contracts_with_dependents'] = len(current_active_df[current_active_df['dependent_count'] > 0])
+        # Remove monitors and docks counts as requested
+
+        metrics['contracts_with_dependents'] = len(revenue_generating_df[revenue_generating_df['dependent_count'] > 0])
         metrics['avg_dependents_per_contract'] = (
-            current_active_df[current_active_df['dependent_count'] > 0]['dependent_count'].mean()
-            if len(current_active_df[current_active_df['dependent_count'] > 0]) > 0 else 0
+            revenue_generating_df[revenue_generating_df['dependent_count'] > 0]['dependent_count'].mean()
+            if len(revenue_generating_df[revenue_generating_df['dependent_count'] > 0]) > 0 else 0
         )
 
         # 8. Convert to DataFrame for writing to BigQuery
@@ -315,7 +337,7 @@ def main():
         logger.info("Results:")
         for key, value in metrics.items():
             if isinstance(value, (int, float)):
-                if 'mrr' in key or 'arr' in key or key == 'avg_subscription_value':
+                if any(term in key for term in ['mrr', 'arr', 'revenue', 'subscription_value']):
                     logger.info(f"  {key}: ${value:,.2f}")
                 elif 'percentage' in key or 'rate' in key:
                     logger.info(f"  {key}: {value:.2f}%")
@@ -328,7 +350,7 @@ def main():
         if not LOCAL_TEST:
             logger.info(f"Writing to BigQuery table: {table_id}")
 
-            # Define the schema
+            # Define the schema - updated to match new metrics
             job_config = bigquery.LoadJobConfig(
                 write_disposition="WRITE_APPEND",
                 schema=[
@@ -337,6 +359,7 @@ def main():
                     bigquery.SchemaField("approved_not_started", "INTEGER"),
                     bigquery.SchemaField("offboarding_contracts", "INTEGER"),
                     bigquery.SchemaField("total_contracts", "INTEGER"),
+                    bigquery.SchemaField("revenue_generating_contracts", "INTEGER"),
                     bigquery.SchemaField("new_subscriptions", "INTEGER"),
                     bigquery.SchemaField("churned_subscriptions", "INTEGER"),
                     bigquery.SchemaField("retention_rate", "FLOAT"),
@@ -346,10 +369,13 @@ def main():
                     bigquery.SchemaField("hardware_fees_mrr", "NUMERIC"),
                     bigquery.SchemaField("software_fees_mrr", "NUMERIC"),
                     bigquery.SchemaField("health_insurance_mrr", "NUMERIC"),
-                    bigquery.SchemaField("placement_fees_mrr", "NUMERIC"),
+                    bigquery.SchemaField("placement_fees_monthly", "NUMERIC"),
                     bigquery.SchemaField("total_mrr", "NUMERIC"),
+                    bigquery.SchemaField("total_monthly_revenue", "NUMERIC"),
                     bigquery.SchemaField("total_arr", "NUMERIC"),
                     bigquery.SchemaField("avg_subscription_value", "NUMERIC"),
+                    bigquery.SchemaField("recurring_revenue_percentage", "FLOAT"),
+                    bigquery.SchemaField("one_time_revenue_percentage", "FLOAT"),
                     bigquery.SchemaField("total_customers", "INTEGER"),
                     bigquery.SchemaField("new_customers_this_month", "INTEGER"),
                     bigquery.SchemaField("addon_revenue_percentage", "FLOAT"),
@@ -357,8 +383,6 @@ def main():
                     bigquery.SchemaField("avg_days_until_start", "FLOAT"),
                     bigquery.SchemaField("plan_change_rate", "FLOAT"),
                     bigquery.SchemaField("laptops_count", "INTEGER"),
-                    bigquery.SchemaField("monitors_count", "INTEGER"),
-                    bigquery.SchemaField("docks_count", "INTEGER"),
                     bigquery.SchemaField("contracts_with_dependents", "INTEGER"),
                     bigquery.SchemaField("avg_dependents_per_contract", "FLOAT"),
                 ]

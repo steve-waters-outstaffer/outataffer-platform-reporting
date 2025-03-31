@@ -265,7 +265,7 @@ def main():
             'hardware_fees_mrr': revenue_generating_df['hardware_fees_aud'].sum(),
             'software_fees_mrr': revenue_generating_df['software_fees_aud'].sum(),
             'health_insurance_mrr': revenue_generating_df['health_fees_aud'].sum(),
-            'placement_fees_monthly': new_df['placement_fees_aud'].sum(),  # Renamed to clarify it's monthly
+            'placement_fees_mrr': revenue_generating_df['placement_fees_aud'].sum(),
             'total_customers': revenue_generating_df['companyId'].nunique(),
             'new_customers_this_month': active_df[
                 (active_df['createdAt_company'] >= snapshot_month_start) &
@@ -276,7 +276,7 @@ def main():
             'plan_change_rate': 0.0,  # Would need historical data to calculate
         }
 
-        # Add derived metrics - Separating recurring revenue from one-time revenue
+        # Add derived metrics
         metrics['total_mrr'] = (
                 metrics['eor_fees_mrr'] +
                 metrics['device_fees_mrr'] +
@@ -284,35 +284,18 @@ def main():
                 metrics['software_fees_mrr'] +
                 metrics['health_insurance_mrr']
         )
-
-        # Calculate total revenue (MRR + one-time fees)
-        metrics['total_monthly_revenue'] = metrics['total_mrr'] + metrics['placement_fees_monthly']
-
-        # Calculate ARR based on MRR only (not including one-time fees)
         metrics['total_arr'] = metrics['total_mrr'] * 12
-
-        # Average subscription value based on MRR
         metrics['avg_subscription_value'] = (
-            metrics['total_mrr'] / metrics['revenue_generating_contracts']
-            if metrics['revenue_generating_contracts'] > 0 else 0
+            metrics['total_mrr'] / metrics['total_active_subscriptions']
+            if metrics['total_active_subscriptions'] > 0 else 0
         )
 
-        # Calculate revenue component percentages based on total monthly revenue
-        if metrics['total_monthly_revenue'] > 0:
-            metrics['recurring_revenue_percentage'] = (metrics['total_mrr'] / metrics['total_monthly_revenue']) * 100
-            metrics['one_time_revenue_percentage'] = (metrics['placement_fees_monthly'] / metrics['total_monthly_revenue']) * 100
-        else:
-            metrics['recurring_revenue_percentage'] = 0
-            metrics['one_time_revenue_percentage'] = 0
-
-        # Calculate add-on revenue percentage (as % of MRR, not total revenue)
         addon_revenue = (
                 metrics['device_fees_mrr'] +
                 metrics['hardware_fees_mrr'] +
                 metrics['software_fees_mrr'] +
                 metrics['health_insurance_mrr']
         )
-
         metrics['addon_revenue_percentage'] = (
             addon_revenue / metrics['total_mrr'] * 100
             if metrics['total_mrr'] > 0 else 0
@@ -322,7 +305,11 @@ def main():
         # Count laptops as contracts with device fees
         metrics['laptops_count'] = len(revenue_generating_df[revenue_generating_df['device_fees'] > 0])
 
-        # Remove monitors and docks counts as requested
+        # Count monitors as contracts with hardware fees (assuming the majority of hardware are monitors)
+        metrics['monitors_count'] = len(revenue_generating_df[revenue_generating_df['hardware_fees'] > 0])
+
+        # No direct way to count docks, assuming zero for now
+        metrics['docks_count'] = 0
 
         metrics['contracts_with_dependents'] = len(revenue_generating_df[revenue_generating_df['dependent_count'] > 0])
         metrics['avg_dependents_per_contract'] = (
@@ -337,7 +324,7 @@ def main():
         logger.info("Results:")
         for key, value in metrics.items():
             if isinstance(value, (int, float)):
-                if any(term in key for term in ['mrr', 'arr', 'revenue', 'subscription_value']):
+                if 'mrr' in key or 'arr' in key or key == 'avg_subscription_value':
                     logger.info(f"  {key}: ${value:,.2f}")
                 elif 'percentage' in key or 'rate' in key:
                     logger.info(f"  {key}: {value:.2f}%")
@@ -350,7 +337,7 @@ def main():
         if not LOCAL_TEST:
             logger.info(f"Writing to BigQuery table: {table_id}")
 
-            # Define the schema - updated to match new metrics
+            # Define the schema
             job_config = bigquery.LoadJobConfig(
                 write_disposition="WRITE_APPEND",
                 schema=[
@@ -369,13 +356,10 @@ def main():
                     bigquery.SchemaField("hardware_fees_mrr", "NUMERIC"),
                     bigquery.SchemaField("software_fees_mrr", "NUMERIC"),
                     bigquery.SchemaField("health_insurance_mrr", "NUMERIC"),
-                    bigquery.SchemaField("placement_fees_monthly", "NUMERIC"),
+                    bigquery.SchemaField("placement_fees_mrr", "NUMERIC"),
                     bigquery.SchemaField("total_mrr", "NUMERIC"),
-                    bigquery.SchemaField("total_monthly_revenue", "NUMERIC"),
                     bigquery.SchemaField("total_arr", "NUMERIC"),
                     bigquery.SchemaField("avg_subscription_value", "NUMERIC"),
-                    bigquery.SchemaField("recurring_revenue_percentage", "FLOAT"),
-                    bigquery.SchemaField("one_time_revenue_percentage", "FLOAT"),
                     bigquery.SchemaField("total_customers", "INTEGER"),
                     bigquery.SchemaField("new_customers_this_month", "INTEGER"),
                     bigquery.SchemaField("addon_revenue_percentage", "FLOAT"),
@@ -383,6 +367,8 @@ def main():
                     bigquery.SchemaField("avg_days_until_start", "FLOAT"),
                     bigquery.SchemaField("plan_change_rate", "FLOAT"),
                     bigquery.SchemaField("laptops_count", "INTEGER"),
+                    bigquery.SchemaField("monitors_count", "INTEGER"),
+                    bigquery.SchemaField("docks_count", "INTEGER"),
                     bigquery.SchemaField("contracts_with_dependents", "INTEGER"),
                     bigquery.SchemaField("avg_dependents_per_contract", "FLOAT"),
                 ]
