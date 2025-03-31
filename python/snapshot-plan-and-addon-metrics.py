@@ -1,17 +1,26 @@
-# Refactored snapshot script for plan + add-on metrics
-# Strategy: Pull all active contracts once, enrich in-memory
-
+# snapshot-plan-and-addon-metrics.py
 import pandas as pd
 from datetime import datetime
 from google.cloud import bigquery
 import logging
 import sys
+import argparse
+from snapshot_utils import write_snapshot_to_bigquery
 
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Generate plan and add-on metrics snapshot')
+parser.add_argument('--dry-run', action='store_true', help='Validate without writing data')
+args = parser.parse_args()
+
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
-logger = logging.getLogger('refactored-snapshot')
+logger = logging.getLogger('plan-addon-snapshot')
 
+# Initialize BigQuery client
 client = bigquery.Client()
+table_id = 'outstaffer-app-prod.dashboard_metrics.plan_addon_adoption'
 
+# Define snapshot date as today
 SNAPSHOT_DATE = datetime.now().date()
 logger.info(f"Processing snapshot for: {SNAPSHOT_DATE}")
 
@@ -171,11 +180,42 @@ for _, row in os_totals.iterrows():
         'contract_count': int(row['count'])
     })
 
-# Output DataFrame
+# Create metrics DataFrame
 metrics_df = pd.DataFrame(metrics)
 logger.info(f"Generated {len(metrics_df)} metrics rows")
 
-# Write to CSV and print
+# Define schema for BigQuery
+schema = [
+    bigquery.SchemaField("snapshot_date", "DATE"),
+    bigquery.SchemaField("metric_type", "STRING"),
+    bigquery.SchemaField("id", "STRING"),
+    bigquery.SchemaField("label", "STRING"),
+    bigquery.SchemaField("count", "INTEGER"),
+    bigquery.SchemaField("overall_percentage", "FLOAT"),
+    bigquery.SchemaField("category_percentage", "FLOAT"),
+    bigquery.SchemaField("contract_count", "INTEGER")
+]
+
+# Write to BigQuery using our utility
+success = write_snapshot_to_bigquery(
+    metrics_df=metrics_df,
+    table_id=table_id,
+    schema=schema,
+    dry_run=args.dry_run
+)
+
+if not success:
+    logger.error("Failed to write plan and add-on metrics to BigQuery")
+    sys.exit(1)
+
+# Display metric type counts
+metrics_by_type = metrics_df.groupby('metric_type').size().reset_index(name='count')
+for _, row in metrics_by_type.iterrows():
+    logger.info(f"Generated {row['count']} metrics of type '{row['metric_type']}'")
+
+# Create local CSV backup
 csv_filename = f"plan_addon_metrics_{SNAPSHOT_DATE}.csv"
 metrics_df.to_csv(csv_filename, index=False)
-print(metrics_df)
+logger.info(f"Saved metrics to {csv_filename}")
+
+print("Plan and Add-on metrics snapshot completed successfully")

@@ -1,3 +1,4 @@
+# snapshot-revenue-metrics.py
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -6,7 +7,13 @@ from google.cloud import bigquery
 import logging
 import sys
 import json
-from tabulate import tabulate  # For displaying results locally
+import argparse
+from snapshot_utils import write_snapshot_to_bigquery
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Generate revenue metrics snapshot')
+parser.add_argument('--dry-run', action='store_true', help='Validate without writing data')
+args = parser.parse_args()
 
 # Set up logging
 logging.basicConfig(
@@ -19,9 +26,6 @@ logger = logging.getLogger('subscription-snapshot')
 # Initialize BigQuery client
 client = bigquery.Client()
 table_id = 'outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot'
-
-# Add a flag for local testing (don't write to BigQuery)
-LOCAL_TEST = True  # Set to False when ready to write to BigQuery
 
 def main():
     try:
@@ -228,7 +232,9 @@ def main():
 
         # For approved_not_started, calculate days until start
         if len(approved_not_started_df) > 0:
-            approved_not_started_df['days_until_start'] = (approved_not_started_df['start_date'] - pd.Timestamp(snapshot_date).tz_localize(None)).dt.days
+            # Create a new column without triggering the warning
+            days_until = [(d - pd.Timestamp(snapshot_date).tz_localize(None)).days for d in approved_not_started_df['start_date']]
+            approved_not_started_df = approved_not_started_df.assign(days_until_start=days_until)
 
         # Contracts created/churned in the snapshot month
         # Ensure snapshot dates are timezone-naive for consistent comparison
@@ -266,7 +272,7 @@ def main():
             'software_fees_mrr': revenue_generating_df['software_fees_aud'].sum(),
             'health_insurance_mrr': revenue_generating_df['health_fees_aud'].sum(),
             'placement_fees_monthly': new_df['placement_fees_aud'].sum(),  # Renamed to clarify it's monthly
-            'total_customers': revenue_generating_df['companyId'].nunique(),
+            'total_customers': int(revenue_generating_df['companyId'].nunique()),
             'new_customers_this_month': active_df[
                 (active_df['createdAt_company'] >= snapshot_month_start) &
                 (active_df['createdAt_company'] < next_month)
@@ -275,6 +281,8 @@ def main():
             'avg_days_until_start': approved_not_started_df['days_until_start'].mean() if len(approved_not_started_df) > 0 else 0,
             'plan_change_rate': 0.0,  # Would need historical data to calculate
         }
+
+        logger.info(f"total_customers set to: {metrics['total_customers']}")
 
         # Add derived metrics - Separating recurring revenue from one-time revenue
         metrics['total_mrr'] = (
@@ -332,73 +340,79 @@ def main():
 
         # 8. Convert to DataFrame for writing to BigQuery
         metrics_df = pd.DataFrame([metrics])
+        #metrics_df = metrics_df[[field.name for field in schema]]  # Add this line
 
         # 9. Local visualization and validation
         logger.info("Results:")
         for key, value in metrics.items():
             if isinstance(value, (int, float)):
-                if any(term in key for term in ['mrr', 'arr', 'revenue', 'subscription_value']):
+                if key == 'revenue_generating_contracts' or key.endswith('_count') or key.startswith('total_') and 'revenue' not in key and 'mrr' not in key and 'arr' not in key:
+                    # Show as counts
+                    logger.info(f"  {key}: {value:,}")
+                elif any(term in key for term in ['mrr', 'arr', 'revenue', 'subscription_value']):
+                    # Show as dollar amounts
                     logger.info(f"  {key}: ${value:,.2f}")
                 elif 'percentage' in key or 'rate' in key:
+                    # Show as percentages
                     logger.info(f"  {key}: {value:.2f}%")
                 else:
+                    # Default formatting for other numbers
                     logger.info(f"  {key}: {value:,}")
             else:
+                # Non-numeric values
                 logger.info(f"  {key}: {value}")
 
-        # 10. Write to BigQuery if not in local test mode
-        if not LOCAL_TEST:
-            logger.info(f"Writing to BigQuery table: {table_id}")
+        # 10. Define schema for BigQuery
+        schema = [
+            bigquery.SchemaField("snapshot_date", "DATE"),
+            bigquery.SchemaField("total_active_subscriptions", "INTEGER"),
+            bigquery.SchemaField("approved_not_started", "INTEGER"),
+            bigquery.SchemaField("offboarding_contracts", "INTEGER"),
+            bigquery.SchemaField("total_contracts", "INTEGER"),
+            bigquery.SchemaField("revenue_generating_contracts", "INTEGER"),
+            bigquery.SchemaField("new_subscriptions", "INTEGER"),
+            bigquery.SchemaField("churned_subscriptions", "INTEGER"),
+            bigquery.SchemaField("retention_rate", "FLOAT"),
+            bigquery.SchemaField("churn_rate", "FLOAT"),
+            bigquery.SchemaField("eor_fees_mrr", "FLOAT64"),
+            bigquery.SchemaField("device_fees_mrr", "FLOAT64"),
+            bigquery.SchemaField("hardware_fees_mrr", "FLOAT64"),
+            bigquery.SchemaField("software_fees_mrr", "FLOAT64"),
+            bigquery.SchemaField("health_insurance_mrr", "FLOAT64"),
+            bigquery.SchemaField("placement_fees_monthly", "FLOAT64"),
+            bigquery.SchemaField("total_mrr", "FLOAT64"),
+            bigquery.SchemaField("total_monthly_revenue", "FLOAT64"),
+            bigquery.SchemaField("total_arr", "FLOAT64"),
+            bigquery.SchemaField("avg_subscription_value", "FLOAT64"),
+            bigquery.SchemaField("recurring_revenue_percentage", "FLOAT"),
+            bigquery.SchemaField("one_time_revenue_percentage", "FLOAT"),
+            bigquery.SchemaField("total_customers", "INTEGER"),
+            bigquery.SchemaField("new_customers_this_month", "INTEGER"),
+            bigquery.SchemaField("addon_revenue_percentage", "FLOAT"),
+            bigquery.SchemaField("avg_days_from_approval_to_start", "FLOAT"),
+            bigquery.SchemaField("avg_days_until_start", "FLOAT"),
+            bigquery.SchemaField("plan_change_rate", "FLOAT"),
+            bigquery.SchemaField("laptops_count", "INTEGER"),
+            bigquery.SchemaField("contracts_with_dependents", "INTEGER"),
+            bigquery.SchemaField("avg_dependents_per_contract", "FLOAT"),
+        ]
 
-            # Define the schema - updated to match new metrics
-            job_config = bigquery.LoadJobConfig(
-                write_disposition="WRITE_APPEND",
-                schema=[
-                    bigquery.SchemaField("snapshot_date", "DATE"),
-                    bigquery.SchemaField("total_active_subscriptions", "INTEGER"),
-                    bigquery.SchemaField("approved_not_started", "INTEGER"),
-                    bigquery.SchemaField("offboarding_contracts", "INTEGER"),
-                    bigquery.SchemaField("total_contracts", "INTEGER"),
-                    bigquery.SchemaField("revenue_generating_contracts", "INTEGER"),
-                    bigquery.SchemaField("new_subscriptions", "INTEGER"),
-                    bigquery.SchemaField("churned_subscriptions", "INTEGER"),
-                    bigquery.SchemaField("retention_rate", "FLOAT"),
-                    bigquery.SchemaField("churn_rate", "FLOAT"),
-                    bigquery.SchemaField("eor_fees_mrr", "NUMERIC"),
-                    bigquery.SchemaField("device_fees_mrr", "NUMERIC"),
-                    bigquery.SchemaField("hardware_fees_mrr", "NUMERIC"),
-                    bigquery.SchemaField("software_fees_mrr", "NUMERIC"),
-                    bigquery.SchemaField("health_insurance_mrr", "NUMERIC"),
-                    bigquery.SchemaField("placement_fees_monthly", "NUMERIC"),
-                    bigquery.SchemaField("total_mrr", "NUMERIC"),
-                    bigquery.SchemaField("total_monthly_revenue", "NUMERIC"),
-                    bigquery.SchemaField("total_arr", "NUMERIC"),
-                    bigquery.SchemaField("avg_subscription_value", "NUMERIC"),
-                    bigquery.SchemaField("recurring_revenue_percentage", "FLOAT"),
-                    bigquery.SchemaField("one_time_revenue_percentage", "FLOAT"),
-                    bigquery.SchemaField("total_customers", "INTEGER"),
-                    bigquery.SchemaField("new_customers_this_month", "INTEGER"),
-                    bigquery.SchemaField("addon_revenue_percentage", "FLOAT"),
-                    bigquery.SchemaField("avg_days_from_approval_to_start", "FLOAT"),
-                    bigquery.SchemaField("avg_days_until_start", "FLOAT"),
-                    bigquery.SchemaField("plan_change_rate", "FLOAT"),
-                    bigquery.SchemaField("laptops_count", "INTEGER"),
-                    bigquery.SchemaField("contracts_with_dependents", "INTEGER"),
-                    bigquery.SchemaField("avg_dependents_per_contract", "FLOAT"),
-                ]
-            )
+        # Reorder to be like the schema
+        metrics_df = metrics_df[[field.name for field in schema]]  # Reordering line
 
-            try:
-                job = client.load_table_from_dataframe(metrics_df, table_id, job_config=job_config)
-                job.result()  # Wait for the job to complete
-                logger.info(f"Successfully wrote snapshot for {snapshot_date} to {table_id}")
-            except Exception as e:
-                logger.error(f"Error writing to BigQuery: {str(e)}")
-                raise
-        else:
-            logger.info("LOCAL_TEST mode: not writing to BigQuery")
+        # 11. Write to BigQuery using our utility
+        success = write_snapshot_to_bigquery(
+            metrics_df=metrics_df,
+            table_id=table_id,
+            schema=schema,
+            dry_run=args.dry_run
+        )
 
-        # 11. Save results locally (optional, for further inspection)
+        if not success:
+            logger.error("Failed to write revenue metrics to BigQuery")
+            sys.exit(1)
+
+        # 12. Save results locally (optional, for further inspection)
         metrics_df.to_csv(f"subscription_snapshot_{snapshot_date}.csv", index=False)
         logger.info(f"Results saved to subscription_snapshot_{snapshot_date}.csv")
 

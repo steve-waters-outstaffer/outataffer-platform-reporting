@@ -1,12 +1,16 @@
-#!/usr/bin/env python3
-# Health Insurance Metrics Snapshot Script
-# Captures adoption rates of health insurance plans and add-ons
-
+# snapshot-health-insurance.py
 import pandas as pd
 from datetime import datetime
 from google.cloud import bigquery
 import logging
 import sys
+import argparse
+from snapshot_utils import write_snapshot_to_bigquery
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Generate health insurance metrics snapshot')
+parser.add_argument('--dry-run', action='store_true', help='Validate without writing data')
+args = parser.parse_args()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
@@ -14,6 +18,7 @@ logger = logging.getLogger('health-insurance-snapshot')
 
 # Initialize BigQuery client
 client = bigquery.Client()
+table_id = 'outstaffer-app-prod.dashboard_metrics.health_insurance_metrics'
 
 # Define snapshot date as today
 SNAPSHOT_DATE = datetime.now().date()
@@ -245,35 +250,35 @@ metrics.append({
 metrics_df = pd.DataFrame(metrics)
 logger.info(f"Generated {len(metrics_df)} health insurance metrics rows")
 
+# Define schema for BigQuery
+schema = [
+    bigquery.SchemaField("snapshot_date", "DATE"),
+    bigquery.SchemaField("metric_type", "STRING"),
+    bigquery.SchemaField("id", "STRING"),
+    bigquery.SchemaField("label", "STRING"),
+    bigquery.SchemaField("count", "INTEGER"),
+    bigquery.SchemaField("overall_percentage", "FLOAT"),
+    bigquery.SchemaField("category_percentage", "FLOAT"),
+    bigquery.SchemaField("contract_count", "INTEGER"),
+    bigquery.SchemaField("value", "FLOAT")
+]
+
+# Write to BigQuery using our utility
+success = write_snapshot_to_bigquery(
+    metrics_df=metrics_df,
+    table_id=table_id,
+    schema=schema,
+    dry_run=args.dry_run
+)
+
+if not success:
+    logger.error("Failed to write health insurance metrics to BigQuery")
+    sys.exit(1)
+
 # Write to CSV
 csv_filename = f"health_insurance_metrics_{SNAPSHOT_DATE}.csv"
 metrics_df.to_csv(csv_filename, index=False)
 logger.info(f"Saved metrics to {csv_filename}")
-
-# Optionally write to BigQuery
-# Uncomment and configure if you want to write to BigQuery
-"""
-table_id = 'outstaffer-app-prod.dashboard_metrics.health_insurance_metrics'
-
-job_config = bigquery.LoadJobConfig(
-    schema=[
-        bigquery.SchemaField("snapshot_date", "DATE"),
-        bigquery.SchemaField("metric_type", "STRING"),
-        bigquery.SchemaField("id", "STRING"),
-        bigquery.SchemaField("label", "STRING"),
-        bigquery.SchemaField("count", "INTEGER"),
-        bigquery.SchemaField("overall_percentage", "FLOAT"),
-        bigquery.SchemaField("category_percentage", "FLOAT"),
-        bigquery.SchemaField("contract_count", "INTEGER"),
-        bigquery.SchemaField("value", "FLOAT"),
-    ],
-    write_disposition="WRITE_APPEND",
-)
-
-job = client.load_table_from_dataframe(metrics_df, table_id, job_config=job_config)
-job.result()
-logger.info(f"Successfully wrote {len(metrics_df)} metrics to {table_id}")
-"""
 
 # Display key metrics summary
 plans_summary = metrics_df[metrics_df['metric_type'] == 'health_insurance_plan'].sort_values('count', ascending=False)
@@ -286,4 +291,4 @@ logger.info(f"Contracts with dependents: {has_dependents_count} ({has_dependents
 logger.info(f"Total dependents: {total_dependents}")
 logger.info(f"Average dependents per contract with dependents: {avg_dependents:.2f}")
 
-print(metrics_df)
+print("Health insurance metrics snapshot completed successfully")
