@@ -1,0 +1,226 @@
+[{
+  "snapshot_date": "2025-03-31",
+  "metric_type": "plan",
+  "id": "EOR_CORE",
+  "label": "EOR core",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "100.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "plan",
+  "id": "HR_CORE",
+  "label": "HR core",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "100.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "plan",
+  "id": "HR_PREMIUM",
+  "label": "HR premium",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "100.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "APPLE_PRO_M2_MAX_16",
+  "label": "Apple MacBook Pro 16 (Ultimate)",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "0.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "WIN_ULTIMATE",
+  "label": "Windows laptop (Ultimate)",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "0.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "hardware_addon",
+  "id": "MONITOR_32",
+  "label": "32” Monitor",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "0.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "membership_addon",
+  "id": "WEWORK",
+  "label": "WeWork",
+  "count": "0",
+  "overall_percentage": "0.0",
+  "category_percentage": "0.0",
+  "contract_count": "0"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "APPLE_AIR_15",
+  "label": "Apple MacBook Air 15 (Power users)",
+  "count": "1",
+  "overall_percentage": "0.79365079365079361",
+  "category_percentage": "1.0526315789473684",
+  "contract_count": "1"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "APPLE_PRO_16",
+  "label": "Apple MacBook Pro 16 (Designers/Developers)",
+  "count": "1",
+  "overall_percentage": "0.79365079365079361",
+  "category_percentage": "1.0526315789473684",
+  "contract_count": "1"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "software_addon",
+  "id": "KUMOSPACE",
+  "label": "Virtual Workspaces",
+  "count": "1",
+  "overall_percentage": "0.79365079365079361",
+  "category_percentage": "1.098901098901099",
+  "contract_count": "1"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "hardware_addon",
+  "id": "MONITOR_27",
+  "label": "27” Monitor",
+  "count": "2",
+  "overall_percentage": "1.5873015873015872",
+  "category_percentage": "4.4444444444444446",
+  "contract_count": "2"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "country",
+  "id": "AU",
+  "label": "AU",
+  "count": "3",
+  "overall_percentage": "2.3809523809523809",
+  "category_percentage": "100.0",
+  "contract_count": "3"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "WIN_DES_DEV",
+  "label": "Windows laptop (Designers/Developers)",
+  "count": "3",
+  "overall_percentage": "2.3809523809523809",
+  "category_percentage": "3.1578947368421053",
+  "contract_count": "3"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "APPLE_AIR_13",
+  "label": "Apple MacBook Air 13 (Everyday)",
+  "count": "5",
+  "overall_percentage": "3.9682539682539679",
+  "category_percentage": "5.2631578947368416",
+  "contract_count": "5"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "hardware_addon",
+  "id": "LAPTOP_DOCK",
+  "label": "Laptop Dock",
+  "count": "5",
+  "overall_percentage": "3.9682539682539679",
+  "category_percentage": "11.111111111111111",
+  "contract_count": "5"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "country",
+  "id": "VN",
+  "label": "VN",
+  "count": "7",
+  "overall_percentage": "5.5555555555555554",
+  "category_percentage": "100.0",
+  "contract_count": "7"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "os_choice",
+  "id": "MACOS",
+  "label": "MacOS",
+  "count": "7",
+  "overall_percentage": "5.5555555555555554",
+  "category_percentage": "7.3684210526315779",
+  "contract_count": "7"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "country",
+  "id": "TH",
+  "label": "TH",
+  "count": "8",
+  "overall_percentage": "6.3492063492063489",
+  "category_percentage": "100.0",
+  "contract_count": "8"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "WIN_POWER",
+  "label": "Windows laptop (Power users)",
+  "count": "11",
+  "overall_percentage": "8.73015873015873",
+  "category_percentage": "11.578947368421053",
+  "contract_count": "11"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "hardware_addon",
+  "id": "MONITOR_24",
+  "label": "24” Monitor",
+  "count": "38",
+  "overall_percentage": "30.158730158730158",
+  "category_percentage": "84.444444444444443",
+  "contract_count": "38"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "device",
+  "id": "WIN_EVERYDAY",
+  "label": "Windows laptop (Everyday task)",
+  "count": "74",
+  "overall_percentage": "58.730158730158735",
+  "category_percentage": "77.89473684210526",
+  "contract_count": "74"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "os_choice",
+  "id": "WINDOWS",
+  "label": "Windows",
+  "count": "88",
+  "overall_percentage": "69.841269841269835",
+  "category_percentage": "92.631578947368425",
+  "contract_count": "88"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "software_addon",
+  "id": "INSIGHTFUL",
+  "label": "Insightful",
+  "count": "90",
+  "overall_percentage": "71.428571428571431",
+  "category_percentage": "98.9010989010989",
+  "contract_count": "90"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "country",
+  "id": "PH",
+  "label": "PH",
+  "count": "108",
+  "overall_percentage": "85.714285714285708",
+  "category_percentage": "100.0",
+  "contract_count": "108"
+}, {
+  "snapshot_date": "2025-03-31",
+  "metric_type": "plan",
+  "id": "EOR_PREMIUM",
+  "label": "EOR premium",
+  "count": "126",
+  "overall_percentage": "100.0",
+  "category_percentage": "100.0",
+  "contract_count": "126"
+}]

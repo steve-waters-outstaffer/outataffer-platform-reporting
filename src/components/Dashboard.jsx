@@ -45,15 +45,22 @@ const Dashboard = () => {
             available: true
         },
         {
-            title: 'Customer Analytics',
-            description: 'Customer acquisition, retention, and segmentation analytics',
+            title: 'Plan & Add-on Analytics',
+            description: 'Breakdown of hardware, software, and memberships',
+            icon: <PublicIcon sx={{ fontSize: 48, color: CustomColors.Purple }} />,
+            path: '/addons-dashboard',
+            available: true
+        },
+        {
+            title: 'Health Insurance Analytics',
+            description: 'Health insurance uptake and distribution',
             icon: <PeopleAltIcon sx={{ fontSize: 48, color: CustomColors.Cobalt }} />,
             path: '/customer-dashboard',
             available: false
         },
         {
-            title: 'Business Performance',
-            description: 'Key performance indicators and operational metrics',
+            title: 'Customer Analytics',
+            description: 'Customer and Company reviews',
             icon: <BarChartIcon sx={{ fontSize: 48, color: CustomColors.Meadow }} />,
             path: '/business-dashboard',
             available: false
@@ -65,13 +72,7 @@ const Dashboard = () => {
             path: '/geographic-dashboard',
             available: false
         },
-        {
-            title: 'Partner Analytics',
-            description: 'Partner performance and engagement metrics',
-            icon: <BusinessIcon sx={{ fontSize: 48, color: CustomColors.Pumpkin }} />,
-            path: '/partner-dashboard',
-            available: false
-        }
+
     ];
 
     return (
