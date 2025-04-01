@@ -1,40 +1,15 @@
-from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from google.cloud import bigquery
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from auth import verify_api_key
+from datetime import datetime
 import logging
 
-app = FastAPI(title="Outstaffer Dashboard API")
-
-# Set up CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Update to your frontend URL in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Simple API key authentication - store in environment variable in production
-API_KEY = "dJ8fK2sP9qR5xV7zT3mA6cE1bN"
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+router = APIRouter()
+client = bigquery.Client()
 logger = logging.getLogger(__name__)
 
-# BigQuery client
-client = bigquery.Client()
-
-
-def verify_api_key(x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
-
-
-@app.get("/latest_metrics")
-async def latest_metrics(api_key: str = Depends(verify_api_key)):
+@router.get("/latest")
+async def revenue_latest(api_key: str = Depends(verify_api_key)):
     """
     Get the latest revenue metrics snapshot from BigQuery.
     Returns all fields from the most recent snapshot.
@@ -67,11 +42,11 @@ async def latest_metrics(api_key: str = Depends(verify_api_key)):
         return result_dict
 
     except Exception as e:
-        logger.error(f"Error fetching latest metrics: {str(e)}")
+        logger.error(f"Error fetching latest revenue metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@app.get("/revenue_trend")
+@router.get("/trend")
 async def revenue_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
     """
     Get MRR trend data for the last X months (default 6).
@@ -107,7 +82,7 @@ async def revenue_trend(months: int = 6, api_key: str = Depends(verify_api_key))
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@app.get("/subscription_trend")
+@router.get("/subscription-trend")
 async def subscription_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
     """
     Get subscription count trend for the last X months (default 6).
@@ -141,14 +116,3 @@ async def subscription_trend(months: int = 6, api_key: str = Depends(verify_api_
     except Exception as e:
         logger.error(f"Error fetching subscription trend: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint"""
-    return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)

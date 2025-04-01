@@ -1,5 +1,10 @@
 runtime: python311
 instance_class: F1
-entrypoint: uvicorn main:app --host=0.0.0.0 --port=${PORT}
+entrypoint: uvicorn main:app --host=0.0.0.0 --port=${PORT:-8080}
 automatic_scaling:
+  min_instances: 0
   max_instances: 2
+  target_cpu_utilization: 0.7
+env_variables:
+  # Move this to Secret Manager in production
+  API_KEY: "dJ8fK2sP9qR5xV7zT3mA6cE1bN"
