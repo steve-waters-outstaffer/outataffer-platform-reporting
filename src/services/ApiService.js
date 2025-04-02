@@ -6,7 +6,10 @@ const BASE_URL = 'https://dashboards-ccc88.ts.r.appspot.com';
 const apiRequest = async (endpoint, options = {}) => {
     const defaultHeaders = {
         'X-API-KEY': API_KEY,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
     };
 
     const config = {
@@ -32,11 +35,12 @@ const apiRequest = async (endpoint, options = {}) => {
     }
 };
 
-// Revenue metrics endpoints - match the actual endpoints from main.py
+// Revenue metrics endpoints
 export const fetchLatestRevenueMetrics = async () => {
     try {
-        // Call the actual endpoint now that it's working
-        return apiRequest('/revenue/latest');
+        // Add timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        return apiRequest(`/revenue/latest?_=${timestamp}`);
     } catch (error) {
         console.warn("Revenue API error, using fallback data:", error);
         // Return hardcoded data as a fallback during development
@@ -77,38 +81,44 @@ export const fetchLatestRevenueMetrics = async () => {
 };
 
 export const fetchRevenueTrend = async (months = 6) => {
-    // Return mock trend data for development
-    return [
-        { month: "Jan 2025", value: 62000, date: "2025-01-31" },
-        { month: "Feb 2025", value: 66000, date: "2025-02-28" },
-        { month: "Mar 2025", value: 81420, date: "2025-03-31" },
-        { month: "Apr 2025", value: null, date: "2025-04-30" }
-    ];
-    // In production:
-    // return apiRequest(`/revenue/trend?months=${months}`);
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/revenue/trend?months=${months}&_=${timestamp}`);
+    } catch (error) {
+        console.warn("Revenue trend API error, using fallback data:", error);
+        // Return mock trend data for development
+        return [
+            { month: "Jan 2025", value: 62000, date: "2025-01-31" },
+            { month: "Feb 2025", value: 66000, date: "2025-02-28" },
+            { month: "Mar 2025", value: 81420, date: "2025-03-31" },
+            { month: "Apr 2025", value: null, date: "2025-04-30" }
+        ];
+    }
 };
 
 export const fetchSubscriptionTrend = async (months = 6) => {
-    // Return mock trend data for development
-    return [
-        { month: "Jan 2025", value: 105, date: "2025-01-31" },
-        { month: "Feb 2025", value: 118, date: "2025-02-28" },
-        { month: "Mar 2025", value: 124, date: "2025-03-31" },
-        { month: "Apr 2025", value: null, date: "2025-04-30" }
-    ];
-    // In production:
-    // return apiRequest(`/revenue/subscription-trend?months=${months}`);
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/revenue/subscription-trend?months=${months}&_=${timestamp}`);
+    } catch (error) {
+        console.warn("Subscription trend API error, using fallback data:", error);
+        // Return mock trend data for development
+        return [
+            { month: "Jan 2025", value: 105, date: "2025-01-31" },
+            { month: "Feb 2025", value: 118, date: "2025-02-28" },
+            { month: "Mar 2025", value: 124, date: "2025-03-31" },
+            { month: "Apr 2025", value: null, date: "2025-04-30" }
+        ];
+    }
 };
 
 // Add-on metrics endpoints
 export const fetchLatestAddonMetrics = async () => {
     try {
-        // Check if API is up
-        await apiRequest('/health');
-        // For production:
-        // return apiRequest('/addons/latest');
-        throw new Error("Using development fallback data");
+        const timestamp = new Date().getTime();
+        return apiRequest(`/addons/latest?_=${timestamp}`);
     } catch (error) {
+        console.warn("Add-on metrics API error, using fallback data:", error);
         // Import local data during development
         return import('../components/addons_data.json')
             .then(module => module.default)
@@ -120,39 +130,37 @@ export const fetchLatestAddonMetrics = async () => {
 };
 
 // Health insurance metrics endpoints
-export const fetchLatestHealthInsuranceMetrics = async () => {
-    // In production:
-    // return apiRequest('/health_insurance/latest');
-
-    // For development, return mock data
-    return [
-        {
-            "snapshot_date": "2025-03-31",
-            "metric_type": "health_insurance_plan",
-            "id": "STANDARD",
-            "label": "Standard Health Plan",
-            "count": 67,
-            "overall_percentage": 53.2,
-            "category_percentage": 100.0,
-            "contract_count": 67
-        },
-        {
-            "snapshot_date": "2025-03-31",
-            "metric_type": "health_insurance_plan",
-            "id": "PREMIUM",
-            "label": "Premium Health Plan",
-            "count": 34,
-            "overall_percentage": 27.0,
-            "category_percentage": 100.0,
-            "contract_count": 34
-        }
-    ];
+export const fetchLatestHealthInsuranceMetrics = async (cacheBustQuery = '') => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/health-insurance/latest?_=${timestamp}${cacheBustQuery || ''}`);
+    } catch (error) {
+        console.warn("Health insurance API error, falling back to manual JSON data:", error);
+        // Return the exact JSON from Postman as a fallback
+        return [
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_plan_by_country","id":"SAFETY_WING_PREMIUM","label":"Safety Wing Premium (PH)","count":1,"overall_percentage":0.9259259259259258,"category_percentage":100.0,"contract_count":1},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_plan_by_country","id":"SAFETY_WING_PREMIUM","label":"Safety Wing Premium (AU)","count":2,"overall_percentage":66.66666666666666,"category_percentage":100.0,"contract_count":2},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_total_by_country","id":"AU","label":"AU","count":2,"overall_percentage":66.66666666666666,"category_percentage":100.0,"contract_count":2},
+            {"snapshot_date":"2025-04-02","metric_type":"eligible_contracts_by_country","id":"AU","label":"AU","count":3,"overall_percentage":0.0,"category_percentage":0.0,"contract_count":3},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_plan_by_country","id":"SAFETY_WING_STANDARD","label":"Safety Wing Standard (VN)","count":7,"overall_percentage":100.0,"category_percentage":100.0,"contract_count":7},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_total_by_country","id":"VN","label":"VN","count":7,"overall_percentage":100.0,"category_percentage":100.0,"contract_count":7},
+            {"snapshot_date":"2025-04-02","metric_type":"eligible_contracts_by_country","id":"VN","label":"VN","count":7,"overall_percentage":0.0,"category_percentage":0.0,"contract_count":7},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_plan_by_country","id":"AIA_PLAN_3","label":"Core Plus Plan (TH)","count":8,"overall_percentage":100.0,"category_percentage":100.0,"contract_count":8},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_total_by_country","id":"TH","label":"TH","count":8,"overall_percentage":100.0,"category_percentage":100.0,"contract_count":8},
+            {"snapshot_date":"2025-04-02","metric_type":"eligible_contracts_by_country","id":"TH","label":"TH","count":8,"overall_percentage":0.0,"category_percentage":0.0,"contract_count":8},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_plan_by_country","id":"LOCAL","label":"Health Insurance  (PH)","count":107,"overall_percentage":99.07407407407408,"category_percentage":100.0,"contract_count":107},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_total_by_country","id":"PH","label":"PH","count":108,"overall_percentage":100.0,"category_percentage":100.0,"contract_count":108},
+            {"snapshot_date":"2025-04-02","metric_type":"eligible_contracts_by_country","id":"PH","label":"PH","count":108,"overall_percentage":0.0,"category_percentage":0.0,"contract_count":108},
+            {"snapshot_date":"2025-04-02","metric_type":"health_insurance_dependents_by_country","id":"PH","label":"PH","count":40,"overall_percentage":37.03703703703704,"category_percentage":100.0,"contract_count":108}
+        ];
+    }
 };
 
 // General health check
 export const checkApiHealth = async () => {
     try {
-        const response = await apiRequest('/health');
+        const timestamp = new Date().getTime();
+        const response = await apiRequest(`/health?_=${timestamp}`);
         return { status: 'ok', isLive: true, ...response };
     } catch (error) {
         console.warn("API health check failed:", error);

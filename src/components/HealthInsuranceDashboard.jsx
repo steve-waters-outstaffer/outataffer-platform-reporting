@@ -1,5 +1,4 @@
 // src/components/HealthInsuranceDashboard.jsx
-// Created based on the updated health insurance data structure with country breakdowns
 import React, { useState, useEffect } from 'react';
 import {
     Box,
@@ -16,9 +15,7 @@ import {
     TableBody,
     TableRow,
     TableCell,
-    Alert,
-    Tabs,
-    Tab
+    Alert
 } from '@mui/material';
 import * as echarts from 'echarts';
 import EChartsComponent from './Chart';
@@ -29,9 +26,13 @@ const HealthInsuranceDashboard = () => {
     const [healthData, setHealthData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [activeCountryTab, setActiveCountryTab] = useState(0);
-    const [groupedData, setGroupedData] = useState({});
-    const [countries, setCountries] = useState([]);
+    const [processedData, setProcessedData] = useState({
+        plansByCountry: {},
+        countrySummary: {},
+        overall: {},
+        dependentsByCountry: {},
+        allPlans: [] // Store all unique plan types
+    });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -39,16 +40,15 @@ const HealthInsuranceDashboard = () => {
                 setLoading(true);
                 setError(null);
 
-                const data = await fetchLatestHealthInsuranceMetrics();
+                // Fetch from API with cache-busting query parameter
+                const timestamp = new Date().getTime();
+                const data = await fetchLatestHealthInsuranceMetrics(`?_=${timestamp}`);
+                console.log("API Response Data:", data);
                 setHealthData(data);
 
-                // Process and group the data
-                const grouped = processHealthData(data);
-                setGroupedData(grouped);
-
-                // Extract countries for tabs
-                const countryList = Object.keys(grouped.countrySummary || {}).sort();
-                setCountries(countryList);
+                // Process the data for easier access
+                const processed = processHealthData(data);
+                setProcessedData(processed);
 
                 setLoading(false);
             } catch (err) {
@@ -61,7 +61,7 @@ const HealthInsuranceDashboard = () => {
         fetchData();
     }, []);
 
-    // Process and organize the data for easier access
+    // Process and organize the API data for easier access
     const processHealthData = (data) => {
         if (!data || !Array.isArray(data) || data.length === 0) return {};
 
@@ -71,24 +71,60 @@ const HealthInsuranceDashboard = () => {
             plansByCountry: {},
             countrySummary: {},
             overall: {},
-            dependentsByCountry: {}
+            dependentsByCountry: {},
+            allPlans: [] // Track all unique plans
         };
+
+        // First pass - identify all unique plan IDs
+        const uniquePlans = new Set();
+        data.forEach(item => {
+            if (item.metric_type === 'health_insurance_plan_by_country') {
+                uniquePlans.add(item.id);
+            }
+        });
+
+        // Convert Set to array of objects with names
+        const allPlans = Array.from(uniquePlans).map(planId => {
+            // Find an item with this plan ID to get its label
+            const matchingItem = data.find(
+                item => item.metric_type === 'health_insurance_plan_by_country' && item.id === planId
+            );
+
+            // Extract the plan name (remove country in parentheses)
+            let planName = planId;
+            if (matchingItem) {
+                const planCountryMatch = matchingItem.label.match(/^(.*?)(?:\s*\(.*?\))?$/);
+                planName = planCountryMatch ? planCountryMatch[1] : matchingItem.label;
+            }
+
+            return { id: planId, name: planName };
+        });
+
+        result.allPlans = allPlans;
 
         // Group data by metric type and organize
         data.forEach(item => {
-            const country = item.id; // For country-specific metrics
-
+            // For metrics with country in the label (health_insurance_plan_by_country)
             if (item.metric_type === 'health_insurance_plan_by_country') {
                 // Extract country from label: "Plan Name (Country Code)"
                 const planCountryMatch = item.label.match(/\((.*?)\)$/);
                 const planCountry = planCountryMatch ? planCountryMatch[1] : 'Unknown';
+                const planName = item.label.replace(` (${planCountry})`, '');
 
                 if (!result.plansByCountry[planCountry]) {
                     result.plansByCountry[planCountry] = [];
                 }
-                result.plansByCountry[planCountry].push(item);
+
+                result.plansByCountry[planCountry].push({
+                    id: item.id,
+                    name: planName,
+                    count: parseInt(item.count),
+                    percentage: parseFloat(item.overall_percentage)
+                });
             }
+            // For country-level metrics
             else if (item.metric_type === 'health_insurance_total_by_country') {
+                const country = item.id; // Country code
                 if (!result.countrySummary[country]) {
                     result.countrySummary[country] = {};
                 }
@@ -96,18 +132,45 @@ const HealthInsuranceDashboard = () => {
                 result.countrySummary[country].coveragePercentage = parseFloat(item.overall_percentage);
             }
             else if (item.metric_type === 'eligible_contracts_by_country') {
+                const country = item.id; // Country code
                 if (!result.countrySummary[country]) {
                     result.countrySummary[country] = {};
                 }
                 result.countrySummary[country].totalEligible = parseInt(item.count);
             }
             else if (item.metric_type === 'health_insurance_dependents_by_country') {
+                const country = item.id; // Country code
                 result.dependentsByCountry[country] = {
                     count: parseInt(item.count),
                     percentage: parseFloat(item.overall_percentage),
                     contractCount: parseInt(item.contract_count)
                 };
             }
+        });
+
+        // Ensure all countries have all plans (even with 0 usage)
+        const countries = Object.keys(result.countrySummary);
+        countries.forEach(country => {
+            // Create a set of plan IDs that already exist for this country
+            const existingPlanIds = new Set(
+                (result.plansByCountry[country] || []).map(plan => plan.id)
+            );
+
+            // Add missing plans with count 0
+            allPlans.forEach(plan => {
+                if (!existingPlanIds.has(plan.id)) {
+                    if (!result.plansByCountry[country]) {
+                        result.plansByCountry[country] = [];
+                    }
+
+                    result.plansByCountry[country].push({
+                        id: plan.id,
+                        name: plan.name,
+                        count: 0,
+                        percentage: 0
+                    });
+                }
+            });
         });
 
         // Calculate overall metrics
@@ -136,7 +199,7 @@ const HealthInsuranceDashboard = () => {
 
         Object.keys(result.countrySummary).forEach(country => {
             const summary = result.countrySummary[country];
-            if (summary.coveragePercentage > topCoveragePercentage && summary.totalEligible > 0) {
+            if (summary.coveragePercentage > topCoveragePercentage && summary.totalEligible > 10) {
                 topCoveragePercentage = summary.coveragePercentage;
                 topCoverageCountry = country;
             }
@@ -149,7 +212,8 @@ const HealthInsuranceDashboard = () => {
             overallCoveragePercentage,
             totalDependents,
             topCoverageCountry,
-            topCoveragePercentage
+            topCoveragePercentage,
+            countriesWithCoverage: Object.keys(result.countrySummary).length
         };
 
         return result;
@@ -161,76 +225,14 @@ const HealthInsuranceDashboard = () => {
         return `${value.toFixed(1)}%`;
     };
 
-    // Handle tab change
-    const handleTabChange = (event, newValue) => {
-        setActiveCountryTab(newValue);
-    };
-
-    // Get pie chart options for a specific country
-    const getCountryPlanChartOptions = (country) => {
-        const plans = groupedData.plansByCountry[country] || [];
+    // Get bar chart options for a specific country
+    const getCountryBarChartOptions = (country) => {
+        const plans = processedData.plansByCountry[country] || [];
+        const sortedPlans = [...plans].sort((a, b) => b.count - a.count);
 
         return {
             title: {
-                text: `${country} Health Insurance Plans`,
-                left: 'center',
-                textStyle: {
-                    color: CustomColors.UIGrey800
-                }
-            },
-            tooltip: {
-                trigger: 'item',
-                formatter: '{b}: {c} ({d}%)'
-            },
-            legend: {
-                orient: 'vertical',
-                left: 'left',
-                textStyle: {
-                    color: CustomColors.UIGrey700
-                }
-            },
-            series: [
-                {
-                    name: 'Insurance Plans',
-                    type: 'pie',
-                    radius: '70%',
-                    center: ['50%', '50%'],
-                    data: plans.map(plan => ({
-                        name: plan.label.replace(` (${country})`, ''),
-                        value: parseInt(plan.count)
-                    })),
-                    emphasis: {
-                        itemStyle: {
-                            shadowBlur: 10,
-                            shadowOffsetX: 0,
-                            shadowColor: 'rgba(0, 0, 0, 0.5)'
-                        }
-                    },
-                    itemStyle: {
-                        color: (params) => {
-                            const colors = [
-                                CustomColors.DeepSkyBlue,
-                                CustomColors.MidnightBlue,
-                                CustomColors.Meadow,
-                                CustomColors.Purple,
-                                CustomColors.Pumpkin
-                            ];
-                            return colors[params.dataIndex % colors.length];
-                        }
-                    }
-                }
-            ]
-        };
-    };
-
-    // Get combined countries bar chart
-    const getCountriesComparisonChartOptions = () => {
-        const summaryData = groupedData.countrySummary || {};
-        const countries = Object.keys(summaryData).sort();
-
-        return {
-            title: {
-                text: 'Coverage by Country',
+                text: `${country} Health Insurance Plan Distribution`,
                 left: 'center',
                 textStyle: {
                     color: CustomColors.UIGrey800
@@ -243,7 +245,73 @@ const HealthInsuranceDashboard = () => {
                 },
                 formatter: (params) => {
                     const data = params[0];
-                    return `${data.name}: ${formatPercentage(data.value)}`;
+                    return `${data.name}: ${data.value} (${data.value > 0 ? formatPercentage(data.value / processedData.countrySummary[country]?.totalWithInsurance * 100) : '0.0%'})`;
+                }
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '12%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: sortedPlans.map(plan => plan.name),
+                axisLabel: {
+                    color: CustomColors.UIGrey700,
+                    rotate: 30,
+                    fontSize: 11
+                }
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: {
+                    formatter: (value) => value
+                }
+            },
+            series: [
+                {
+                    name: 'Employees',
+                    type: 'bar',
+                    data: sortedPlans.map(plan => ({
+                        value: plan.count,
+                        itemStyle: {
+                            color: plan.count > 0 ? CustomColors.DeepSkyBlue : CustomColors.UIGrey300
+                        }
+                    })),
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: '{c}'
+                    }
+                }
+            ]
+        };
+    };
+
+    // Get combined countries bar chart
+    const getCountriesComparisonChartOptions = () => {
+        const summaryData = processedData.countrySummary || {};
+        const countries = Object.keys(summaryData).sort();
+
+        return {
+            title: {
+                text: 'Insurance Coverage by Country',
+                left: 'center',
+                textStyle: {
+                    color: CustomColors.UIGrey800
+                }
+            },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                },
+                formatter: (params) => {
+                    const country = params[0].name;
+                    const value = params[0].value;
+                    const total = summaryData[country]?.totalEligible || 0;
+                    return `${country}: ${value} of ${total} employees (${formatPercentage(params[0].value2)})`;
                 }
             },
             grid: {
@@ -261,171 +329,29 @@ const HealthInsuranceDashboard = () => {
             },
             yAxis: {
                 type: 'value',
-                max: 100,
                 axisLabel: {
-                    formatter: (value) => `${value}%`,
-                    color: CustomColors.UIGrey700
+                    formatter: (value) => value
                 }
             },
             series: [
                 {
-                    name: 'Coverage',
+                    name: 'Employees with Coverage',
                     type: 'bar',
-                    data: countries.map(country => {
-                        return {
-                            value: summaryData[country].coveragePercentage,
-                            itemStyle: {
-                                color: summaryData[country].coveragePercentage === 100
-                                    ? CustomColors.SecretGarden
-                                    : CustomColors.DeepSkyBlue
-                            }
-                        };
-                    }),
+                    data: countries.map(country => ({
+                        value: summaryData[country].totalWithInsurance,
+                        value2: summaryData[country].coveragePercentage, // Store percentage for tooltip
+                        itemStyle: {
+                            color: summaryData[country].coveragePercentage >= 99
+                                ? CustomColors.SecretGarden
+                                : CustomColors.DeepSkyBlue
+                        }
+                    })),
                     label: {
                         show: true,
                         position: 'top',
-                        formatter: '{c}%'
-                    }
-                }
-            ]
-        };
-    };
-
-    // Get gauge chart options for overall coverage
-    const getCoverageGaugeOptions = () => {
-        const coverage = groupedData.overall?.overallCoveragePercentage || 0;
-
-        return {
-            series: [
-                {
-                    type: 'gauge',
-                    startAngle: 180,
-                    endAngle: 0,
-                    center: ['50%', '75%'],
-                    radius: '100%',
-                    min: 0,
-                    max: 100,
-                    splitNumber: 10,
-                    axisLine: {
-                        lineStyle: {
-                            width: 15,
-                            color: [
-                                [0.6, CustomColors.DarkRed],
-                                [0.8, CustomColors.Pumpkin],
-                                [1, CustomColors.SecretGarden]
-                            ]
+                        formatter: (params) => {
+                            return `${params.value} (${formatPercentage(summaryData[params.name].coveragePercentage)})`;
                         }
-                    },
-                    pointer: {
-                        icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z',
-                        length: '12%',
-                        width: 8,
-                        offsetCenter: [0, '-60%'],
-                        itemStyle: {
-                            color: CustomColors.UIGrey800
-                        }
-                    },
-                    axisTick: {
-                        length: 6,
-                        distance: -15,
-                        lineStyle: {
-                            color: '#fff',
-                            width: 2
-                        }
-                    },
-                    splitLine: {
-                        length: 10,
-                        distance: -15,
-                        lineStyle: {
-                            color: '#fff',
-                            width: 2
-                        }
-                    },
-                    axisLabel: {
-                        distance: -35,
-                        color: CustomColors.UIGrey700,
-                        fontSize: 10
-                    },
-                    detail: {
-                        valueAnimation: true,
-                        formatter: '{value}%',
-                        color: CustomColors.MidnightBlue,
-                        fontWeight: 'bold',
-                        fontSize: 22,
-                        offsetCenter: [0, '-10%']
-                    },
-                    data: [
-                        {
-                            value: coverage.toFixed(1),
-                            name: 'Coverage'
-                        }
-                    ]
-                }
-            ]
-        };
-    };
-
-    // Get dependent usage chart
-    const getDependentsChartOptions = () => {
-        const dependentsData = groupedData.dependentsByCountry || {};
-        const countries = Object.keys(dependentsData).sort();
-
-        const data = countries.map(country => {
-            const countryData = dependentsData[country];
-            return {
-                name: country,
-                count: countryData?.count || 0,
-                percentage: countryData?.percentage || 0,
-                contracts: countryData?.contractCount || 0
-            };
-        }).sort((a, b) => b.count - a.count);
-
-        return {
-            title: {
-                text: 'Dependents by Country',
-                left: 'center',
-                textStyle: {
-                    color: CustomColors.UIGrey800
-                }
-            },
-            tooltip: {
-                trigger: 'item',
-                formatter: (params) => {
-                    const item = data.find(d => d.name === params.name);
-                    return `${params.name}: ${item.count} dependents<br/>${formatPercentage(item.percentage)} of contracts`;
-                }
-            },
-            series: [
-                {
-                    name: 'Dependents',
-                    type: 'pie',
-                    radius: '70%',
-                    center: ['50%', '50%'],
-                    data: data.map(item => ({
-                        name: item.name,
-                        value: item.count
-                    })),
-                    emphasis: {
-                        itemStyle: {
-                            shadowBlur: 10,
-                            shadowOffsetX: 0,
-                            shadowColor: 'rgba(0, 0, 0, 0.5)'
-                        }
-                    },
-                    itemStyle: {
-                        color: (params) => {
-                            const colors = [
-                                CustomColors.DeepSkyBlue,
-                                CustomColors.MidnightBlue,
-                                CustomColors.Meadow,
-                                CustomColors.Purple,
-                                CustomColors.Pumpkin
-                            ];
-                            return colors[params.dataIndex % colors.length];
-                        }
-                    },
-                    label: {
-                        formatter: '{b}: {c}'
                     }
                 }
             ]
@@ -454,15 +380,29 @@ const HealthInsuranceDashboard = () => {
     }
 
     // If no data is available after loading
-    if (!groupedData || !groupedData.snapshot_date) {
+    if (!processedData.snapshot_date) {
         return (
             <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
                 <Alert severity="info" sx={{ mb: 2 }}>
                     No health insurance data is available.
                 </Alert>
+                <Box sx={{ mt: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                    <Typography variant="h6">Debug Information:</Typography>
+                    <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap', mt: 1 }}>
+                        Raw Data: {JSON.stringify(healthData, null, 2)}
+                    </Typography>
+                </Box>
             </Container>
         );
     }
+
+    // Sort countries by total employees with insurance (descending)
+    const sortedCountries = Object.keys(processedData.countrySummary || {})
+        .sort((a, b) => {
+            const aCount = processedData.countrySummary[a]?.totalWithInsurance || 0;
+            const bCount = processedData.countrySummary[b]?.totalWithInsurance || 0;
+            return bCount - aCount;
+        });
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -471,11 +411,11 @@ const HealthInsuranceDashboard = () => {
                     Health Insurance Dashboard
                 </Typography>
                 <Typography variant="body" color="text.secondary" gutterBottom>
-                    Health insurance metrics as of {new Date(groupedData.snapshot_date).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    Health insurance metrics as of {new Date(processedData.snapshot_date).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </Typography>
             </Paper>
 
-            {/* Top row: Key metrics cards matching Revenue Dashboard styling */}
+            {/* Top row: Key metrics cards */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: CustomColors.MidnightBlue, color: 'white' }}>
@@ -484,10 +424,10 @@ const HealthInsuranceDashboard = () => {
                                 OVERALL COVERAGE RATE
                             </Typography>
                             <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1 }}>
-                                {formatPercentage(groupedData.overall?.overallCoveragePercentage)}
+                                {formatPercentage(processedData.overall?.overallCoveragePercentage)}
                             </Typography>
                             <Typography variant="bodySmall">
-                                {groupedData.overall?.totalWithInsurance} of {groupedData.overall?.totalEligible} eligible contracts
+                                {processedData.overall?.totalWithInsurance} of {processedData.overall?.totalEligible} eligible contracts
                             </Typography>
                         </CardContent>
                     </Card>
@@ -496,13 +436,13 @@ const HealthInsuranceDashboard = () => {
                     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <CardContent>
                             <Typography variant="h7" color="text.secondary" gutterBottom>
-                                TOTAL DEPENDENTS COVERED
+                                TOTAL COVERED EMPLOYEES
                             </Typography>
                             <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.DeepSkyBlue }}>
-                                {groupedData.overall?.totalDependents || 0}
+                                {processedData.overall?.totalWithInsurance || 0}
                             </Typography>
                             <Typography variant="bodySmall" color="text.secondary">
-                                Additional family members covered
+                                Total employees with insurance
                             </Typography>
                         </CardContent>
                     </Card>
@@ -514,10 +454,10 @@ const HealthInsuranceDashboard = () => {
                                 TOP COVERAGE COUNTRY
                             </Typography>
                             <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Meadow }}>
-                                {groupedData.overall?.topCoverageCountry || 'N/A'}
+                                {processedData.overall?.topCoverageCountry || 'N/A'}
                             </Typography>
                             <Typography variant="bodySmall" color="text.secondary">
-                                {formatPercentage(groupedData.overall?.topCoveragePercentage)} coverage rate
+                                {formatPercentage(processedData.overall?.topCoveragePercentage)} coverage rate
                             </Typography>
                         </CardContent>
                     </Card>
@@ -526,36 +466,16 @@ const HealthInsuranceDashboard = () => {
                     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <CardContent>
                             <Typography variant="h7" color="text.secondary" gutterBottom>
-                                COUNTRIES WITH COVERAGE
+                                DEPENDENTS COVERED
                             </Typography>
                             <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Purple }}>
-                                {Object.keys(groupedData.countrySummary || {}).length}
+                                {processedData.overall?.totalDependents || 0}
                             </Typography>
                             <Typography variant="bodySmall" color="text.secondary">
-                                Countries with health benefits
+                                Additional family members
                             </Typography>
                         </CardContent>
                     </Card>
-                </Grid>
-            </Grid>
-
-            {/* Overall charts */}
-            <Grid container spacing={3} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
-                    <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
-                        <Typography variant="h6" gutterBottom sx={{ ml: 2, mt: 1 }}>Overall Coverage Rate</Typography>
-                        <Box sx={{ height: 300 }}>
-                            <EChartsComponent option={getCoverageGaugeOptions()} />
-                        </Box>
-                    </Paper>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                    <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
-                        <Typography variant="h6" gutterBottom sx={{ ml: 2, mt: 1 }}>Dependent Coverage</Typography>
-                        <Box sx={{ height: 300 }}>
-                            <EChartsComponent option={getDependentsChartOptions()} />
-                        </Box>
-                    </Paper>
                 </Grid>
             </Grid>
 
@@ -568,101 +488,86 @@ const HealthInsuranceDashboard = () => {
                 </Box>
             </Paper>
 
-            {/* Country-specific details with tabs */}
-            <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h5" gutterBottom>Country Details</Typography>
-                <Divider sx={{ mb: 2 }} />
+            {/* Individual country sections */}
+            {sortedCountries.map(country => (
+                <Paper elevation={1} sx={{ p: 3, mb: 3 }} key={country}>
+                    <Typography variant="h5" gutterBottom>{country} Health Insurance Overview</Typography>
+                    <Divider sx={{ mb: 2 }} />
 
-                <Tabs
-                    value={activeCountryTab}
-                    onChange={handleTabChange}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    sx={{ mb: 3 }}
-                >
-                    {countries.map((country, index) => (
-                        <Tab key={country} label={country} id={`country-tab-${index}`} />
-                    ))}
-                </Tabs>
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                            <Typography variant="h6" gutterBottom>Health Insurance Plans</Typography>
+                            <Table>
+                                <TableHead>
+                                    <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Plan</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Employees</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Percentage</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {(processedData.plansByCountry[country] || [])
+                                        .sort((a, b) => b.count - a.count)
+                                        .map((plan) => (
+                                            <TableRow key={plan.id} hover>
+                                                <TableCell>{plan.name}</TableCell>
+                                                <TableCell align="right">{plan.count}</TableCell>
+                                                <TableCell align="right">
+                                                    {plan.count > 0
+                                                        ? formatPercentage(plan.percentage)
+                                                        : '0.0%'
+                                                    }
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    {/* Summary row */}
+                                    <TableRow sx={{ backgroundColor: CustomColors.UIGrey100 }}>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                                            {processedData.countrySummary[country]?.totalWithInsurance || 0}
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                                            {formatPercentage(processedData.countrySummary[country]?.coveragePercentage)}
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
 
-                {countries.map((country, index) => (
-                    <Box
-                        key={country}
-                        role="tabpanel"
-                        hidden={activeCountryTab !== index}
-                        id={`country-tabpanel-${index}`}
-                        aria-labelledby={`country-tab-${index}`}
-                    >
-                        {activeCountryTab === index && (
-                            <Grid container spacing={3}>
-                                <Grid item xs={12} md={6}>
-                                    <Typography variant="h6" gutterBottom>Health Insurance Plans</Typography>
+                            {/* Dependents info for this country */}
+                            {processedData.dependentsByCountry[country] && (
+                                <Box sx={{ mt: 3 }}>
+                                    <Typography variant="h6" gutterBottom>Dependents Coverage</Typography>
                                     <Table>
                                         <TableHead>
                                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
-                                                <TableCell sx={{ fontWeight: 'bold' }}>Plan</TableCell>
-                                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Employees</TableCell>
-                                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Percentage</TableCell>
+                                                <TableCell sx={{ fontWeight: 'bold' }}>Metric</TableCell>
+                                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Value</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {(groupedData.plansByCountry[country] || []).map((plan) => (
-                                                <TableRow key={plan.id} hover>
-                                                    <TableCell>{plan.label.replace(` (${country})`, '')}</TableCell>
-                                                    <TableCell align="right">{plan.count}</TableCell>
-                                                    <TableCell align="right">{formatPercentage(parseFloat(plan.category_percentage))}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {/* Summary row */}
-                                            <TableRow sx={{ backgroundColor: CustomColors.UIGrey100 }}>
-                                                <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
-                                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                                    {groupedData.countrySummary[country]?.totalWithInsurance || 0}
-                                                </TableCell>
-                                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                                    {formatPercentage(groupedData.countrySummary[country]?.coveragePercentage)}
+                                            <TableRow hover>
+                                                <TableCell>Total Dependents</TableCell>
+                                                <TableCell align="right">{processedData.dependentsByCountry[country].count}</TableCell>
+                                            </TableRow>
+                                            <TableRow hover>
+                                                <TableCell>Contracts with Dependents</TableCell>
+                                                <TableCell align="right">
+                                                    {formatPercentage(processedData.dependentsByCountry[country].percentage)}
                                                 </TableCell>
                                             </TableRow>
                                         </TableBody>
                                     </Table>
-
-                                    {/* Dependents info for this country */}
-                                    {groupedData.dependentsByCountry[country] && (
-                                        <Box sx={{ mt: 3 }}>
-                                            <Typography variant="h6" gutterBottom>Dependents Coverage</Typography>
-                                            <Table>
-                                                <TableHead>
-                                                    <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
-                                                        <TableCell sx={{ fontWeight: 'bold' }}>Metric</TableCell>
-                                                        <TableCell align="right" sx={{ fontWeight: 'bold' }}>Value</TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    <TableRow hover>
-                                                        <TableCell>Total Dependents</TableCell>
-                                                        <TableCell align="right">{groupedData.dependentsByCountry[country].count}</TableCell>
-                                                    </TableRow>
-                                                    <TableRow hover>
-                                                        <TableCell>Contracts with Dependents</TableCell>
-                                                        <TableCell align="right">
-                                                            {formatPercentage(groupedData.dependentsByCountry[country].percentage)}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                </TableBody>
-                                            </Table>
-                                        </Box>
-                                    )}
-                                </Grid>
-                                <Grid item xs={12} md={6}>
-                                    <Box sx={{ height: 400 }}>
-                                        <EChartsComponent option={getCountryPlanChartOptions(country)} />
-                                    </Box>
-                                </Grid>
-                            </Grid>
-                        )}
-                    </Box>
-                ))}
-            </Paper>
+                                </Box>
+                            )}
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <Box sx={{ height: 400 }}>
+                                <EChartsComponent option={getCountryBarChartOptions(country)} />
+                            </Box>
+                        </Grid>
+                    </Grid>
+                </Paper>
+            ))}
         </Container>
     );
 };
