@@ -145,7 +145,7 @@ const AddonsDashboard = () => {
                     Add-ons Overview
                 </Typography>
                 <Typography variant="body" color="text.secondary" gutterBottom>
-                    Usage of devices, software, and hardware add-ons as of {addonData?.[0]?.snapshot_date || 'latest'}
+                    Subscriptions with add-on optins for devices, software, and hardware add-ons as of {addonData?.[0]?.snapshot_date || 'latest'}
                 </Typography>
             </Paper>
 
