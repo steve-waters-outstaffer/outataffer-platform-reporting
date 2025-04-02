@@ -44,12 +44,74 @@ const HealthInsuranceDashboard = () => {
 
     const formatPercentage = (value) => `${parseFloat(value).toFixed(1)}%`;
 
-    // Group data by metric type
+    // Insurance plan distribution pie chart
+    const getInsurancePlanChartOptions = () => {
+        const entries = groupedData['health_insurance_plan'];
+        if (!entries) return {};
+
+        // Filter out plans with zero contracts
+        const plansWithData = entries.filter(plan => Number(plan.count) > 0);
+
+        return {
+            title: {
+                text: 'Health Insurance Plan Distribution',
+                left: 'center',
+                textStyle: { color: CustomColors.UIGrey800 }
+            },
+            tooltip: {
+                trigger: 'item',
+                formatter: '{a} <br/>{b}: {c} ({d}%)'
+            },
+            legend: {
+                orient: 'vertical',
+                left: 'left',
+                data: plansWithData.map(item => item.label)
+            },
+            series: [
+                {
+                    name: 'Insurance Plans',
+                    type: 'pie',
+                    radius: ['50%', '70%'],
+                    avoidLabelOverlap: false,
+                    label: {
+                        show: true,
+                        formatter: '{b}: {c} ({d}%)'
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            fontSize: '16',
+                            fontWeight: 'bold'
+                        }
+                    },
+                    labelLine: {
+                        show: true
+                    },
+                    data: plansWithData.map(item => ({
+                        value: Number(item.count),
+                        name: item.label
+                    }))
+                }
+            ]
+        };
+    };
+
+    // Group data by metric type and ensure all numeric values are properly converted
     const groupedData = healthData
         ? healthData.reduce((acc, item) => {
+            // Convert string values to appropriate types
+            const processedItem = {
+                ...item,
+                count: item.count !== null ? Number(item.count) : 0,
+                overall_percentage: item.overall_percentage !== null ? Number(item.overall_percentage) : 0,
+                category_percentage: item.category_percentage !== null ? Number(item.category_percentage) : 0,
+                contract_count: item.contract_count !== null ? Number(item.contract_count) : 0,
+                value: item.value !== null ? Number(item.value) : null
+            };
+
             const category = item.metric_type;
             if (!acc[category]) acc[category] = [];
-            acc[category].push(item);
+            acc[category].push(processedItem);
             return acc;
         }, {})
         : {};
@@ -69,18 +131,66 @@ const HealthInsuranceDashboard = () => {
     const totalDependentsMetric = findMetric('health_insurance_dependents', 'TOTAL_DEPENDENTS');
     const avgDependentsMetric = findMetric('health_insurance_dependents', 'AVG_DEPENDENTS');
 
+    // Dependent distribution chart
+    const getDependentsChartOptions = () => {
+        if (!hasDependentsMetric || !totalWithInsurance) return {};
+
+        const withDependents = Number(hasDependentsMetric.count);
+        const withoutDependents = totalWithInsurance - withDependents;
+
+        return {
+            title: {
+                text: 'Contracts with Dependents',
+                left: 'center',
+                textStyle: { color: CustomColors.UIGrey800 }
+            },
+            tooltip: {
+                trigger: 'item',
+                formatter: '{a} <br/>{b}: {c} ({d}%)'
+            },
+            legend: {
+                orient: 'vertical',
+                left: 'left',
+                data: ['With Dependents', 'Without Dependents']
+            },
+            color: [CustomColors.SlateBlue, CustomColors.LightGrey],
+            series: [
+                {
+                    name: 'Dependent Status',
+                    type: 'pie',
+                    radius: '55%',
+                    center: ['50%', '60%'],
+                    data: [
+                        { value: withDependents, name: 'With Dependents' },
+                        { value: withoutDependents, name: 'Without Dependents' }
+                    ],
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    },
+                    label: {
+                        formatter: '{b}: {c} ({d}%)'
+                    }
+                }
+            ]
+        };
+    };
+
     // Headline metrics
-    const totalWithInsurance = hasInsuranceMetric ? parseInt(hasInsuranceMetric.count) : 0;
-    const totalDependents = totalDependentsMetric ? parseInt(totalDependentsMetric.count) : 0;
-    const avgDependentsPerContract = avgDependentsMetric && avgDependentsMetric.value ? parseFloat(avgDependentsMetric.value) : 0;
-    const dependentCoverage = hasDependentsMetric ? parseFloat(hasDependentsMetric.category_percentage) : 0;
+    const totalWithInsurance = hasInsuranceMetric ? Number(hasInsuranceMetric.count) : 0;
+    const totalDependents = totalDependentsMetric ? Number(totalDependentsMetric.count) : 0;
+    const avgDependentsPerContract = avgDependentsMetric && avgDependentsMetric.value ? Number(avgDependentsMetric.value) : 0;
+    const dependentCoverage = hasDependentsMetric ? Number(hasDependentsMetric.category_percentage) : 0;
 
     // Country distribution for chart
     const getCountryChartOptions = () => {
         const entries = groupedData['health_insurance_by_country'];
         if (!entries) return {};
 
-        const sorted = [...entries].sort((a, b) => parseInt(b.count) - parseInt(a.count)).slice(0, 10).reverse();
+        const sorted = [...entries].sort((a, b) => Number(b.count) - Number(a.count)).slice(0, 10).reverse();
 
         return {
             title: {
@@ -117,7 +227,7 @@ const HealthInsuranceDashboard = () => {
                 {
                     name: 'Contracts',
                     type: 'bar',
-                    data: sorted.map((item) => parseInt(item.count)),
+                    data: sorted.map((item) => Number(item.count)),
                     itemStyle: {
                         color: CustomColors.Cobalt
                     },
@@ -235,11 +345,17 @@ const HealthInsuranceDashboard = () => {
                 </Paper>
             )}
 
-            {/* Health Insurance Plans Table */}
+            {/* Health Insurance Plans Section with Chart and Table */}
             {groupedData['health_insurance_plan'] && (
                 <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
                     <Typography variant="h5" gutterBottom>Health Insurance Plans</Typography>
                     <Divider sx={{ mb: 2 }} />
+
+                    {/* Add pie chart */}
+                    <Box sx={{ height: 400, mb: 3 }}>
+                        <EChartsComponent option={getInsurancePlanChartOptions()} />
+                    </Box>
+
                     <Table>
                         <TableHead>
                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
@@ -251,16 +367,14 @@ const HealthInsuranceDashboard = () => {
                         </TableHead>
                         <TableBody>
                             {groupedData['health_insurance_plan']
-                                .sort((a, b) => parseInt(b.count) - parseInt(a.count))
+                                .sort((a, b) => Number(b.count) - Number(a.count))
                                 .map((item) => (
-                                    parseInt(item.count) > 0 && (
-                                        <TableRow key={item.id}>
-                                            <TableCell sx={{ width: '40%' }}>{item.label}</TableCell>
-                                            <TableCell align="right" sx={{ width: '20%' }}>{item.count}</TableCell>
-                                            <TableCell align="right" sx={{ width: '20%' }}>{formatPercentage(item.overall_percentage)}</TableCell>
-                                            <TableCell align="right" sx={{ width: '20%' }}>{formatPercentage(parseInt(item.count) / totalWithInsurance * 100)}</TableCell>
-                                        </TableRow>
-                                    )
+                                    <TableRow key={item.id} sx={{ opacity: Number(item.count) > 0 ? 1 : 0.5 }}>
+                                        <TableCell sx={{ width: '40%' }}>{item.label}</TableCell>
+                                        <TableCell align="right" sx={{ width: '20%' }}>{item.count}</TableCell>
+                                        <TableCell align="right" sx={{ width: '20%' }}>{formatPercentage(item.overall_percentage)}</TableCell>
+                                        <TableCell align="right" sx={{ width: '20%' }}>{formatPercentage(Number(item.count) / totalWithInsurance * 100)}</TableCell>
+                                    </TableRow>
                                 ))}
                             {/* Totals row */}
                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey100 }}>
@@ -296,7 +410,7 @@ const HealthInsuranceDashboard = () => {
                         </TableHead>
                         <TableBody>
                             {groupedData['health_insurance_by_country']
-                                .sort((a, b) => parseInt(b.count) - parseInt(a.count))
+                                .sort((a, b) => Number(b.count) - Number(a.count))
                                 .map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell sx={{ width: '40%' }}>{item.label}</TableCell>
@@ -309,7 +423,7 @@ const HealthInsuranceDashboard = () => {
                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey100 }}>
                                 <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                                    {groupedData['health_insurance_by_country'].reduce((sum, item) => sum + parseInt(item.count), 0)}
+                                    {groupedData['health_insurance_by_country'].reduce((sum, item) => sum + Number(item.count), 0)}
                                 </TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                                     {formatPercentage(100)}
@@ -330,50 +444,67 @@ const HealthInsuranceDashboard = () => {
                     <Divider sx={{ mb: 2 }} />
 
                     <Grid container spacing={3} sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={4}>
-                            <Card sx={{ height: '100%' }}>
-                                <CardContent>
-                                    <Typography variant="h6" align="center" gutterBottom>
-                                        Contracts with Dependents
-                                    </Typography>
-                                    <Typography variant="h3" align="center" sx={{ mt: 2, color: CustomColors.SlateBlue }}>
-                                        {hasDependentsMetric?.count || 0}
-                                    </Typography>
-                                    <Typography variant="body" align="center" color="text.secondary" sx={{ mt: 1 }}>
-                                        {formatPercentage(dependentCoverage)} of insured contracts
-                                    </Typography>
-                                </CardContent>
-                            </Card>
+                        <Grid item xs={12} md={6}>
+                            {/* Pie chart for dependents distribution */}
+                            <Box sx={{ height: 350 }}>
+                                <EChartsComponent option={getDependentsChartOptions()} />
+                            </Box>
                         </Grid>
 
-                        <Grid item xs={12} md={4}>
-                            <Card sx={{ height: '100%' }}>
+                        <Grid item xs={12} md={6}>
+                            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                 <CardContent>
-                                    <Typography variant="h6" align="center" gutterBottom>
-                                        Total Dependents
+                                    <Typography variant="h6" gutterBottom>
+                                        Dependents Summary
                                     </Typography>
-                                    <Typography variant="h3" align="center" sx={{ mt: 2, color: CustomColors.Meadow }}>
-                                        {totalDependents}
-                                    </Typography>
-                                    <Typography variant="body" align="center" color="text.secondary" sx={{ mt: 1 }}>
-                                        Enrolled in health insurance plans
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
+                                    <Box sx={{ mt: 2 }}>
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={8}>
+                                                <Typography variant="body">Total Dependents:</Typography>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Typography variant="body" sx={{ fontWeight: 'bold' }}>
+                                                    {totalDependents}
+                                                </Typography>
+                                            </Grid>
 
-                        <Grid item xs={12} md={4}>
-                            <Card sx={{ height: '100%' }}>
-                                <CardContent>
-                                    <Typography variant="h6" align="center" gutterBottom>
-                                        Average Dependents
-                                    </Typography>
-                                    <Typography variant="h3" align="center" sx={{ mt: 2, color: CustomColors.Purple }}>
-                                        {avgDependentsPerContract.toFixed(1)}
-                                    </Typography>
-                                    <Typography variant="body" align="center" color="text.secondary" sx={{ mt: 1 }}>
-                                        Per contract with dependents
-                                    </Typography>
+                                            <Grid item xs={8}>
+                                                <Typography variant="body">Contracts with Dependents:</Typography>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Typography variant="body" sx={{ fontWeight: 'bold' }}>
+                                                    {hasDependentsMetric?.count || 0}
+                                                </Typography>
+                                            </Grid>
+
+                                            <Grid item xs={8}>
+                                                <Typography variant="body">% of Contracts with Dependents:</Typography>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Typography variant="body" sx={{ fontWeight: 'bold' }}>
+                                                    {formatPercentage(dependentCoverage)}
+                                                </Typography>
+                                            </Grid>
+
+                                            <Grid item xs={8}>
+                                                <Typography variant="body">Average Dependents per Contract:</Typography>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Typography variant="body" sx={{ fontWeight: 'bold' }}>
+                                                    {avgDependentsPerContract.toFixed(2)}
+                                                </Typography>
+                                            </Grid>
+
+                                            <Grid item xs={8}>
+                                                <Typography variant="body">Contracts without Dependents:</Typography>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Typography variant="body" sx={{ fontWeight: 'bold' }}>
+                                                    {totalWithInsurance - Number(hasDependentsMetric?.count || 0)}
+                                                </Typography>
+                                            </Grid>
+                                        </Grid>
+                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
