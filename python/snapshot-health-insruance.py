@@ -38,19 +38,37 @@ contracts_df = client.query("""
         ec.id AS contract_id,
         ec.companyId,
         ec.employmentLocation.country AS country,
+        ec.role.preferredStartDate AS start_date,
+        ec.status,
+        sm.mapped_status,
         ec.benefits.healthInsurance AS insurance_plan,
-        ec.benefits.addOns.DEPENDENT AS dependent_count,
-        CAST(ec.role.preferredStartDate AS DATE) AS preferredStartDate
+        ec.benefits.addOns.DEPENDENT AS dependent_count
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     JOIN `outstaffer-app-prod.firestore_exports.companies` c ON ec.companyId = c.id
-    JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` cm ON ec.status = cm.contract_status
+    JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm ON ec.status = sm.contract_status
     WHERE (c.demoCompany IS NULL OR c.demoCompany = FALSE)
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
-      AND cm.mapped_status = 'Active'
-      AND ec.role.preferredStartDate IS NOT NULL
-      AND CAST(ec.role.preferredStartDate AS DATE) <= CURRENT_DATE()
+      AND sm.mapped_status = 'Active'
 """).to_dataframe()
 logger.info(f"Loaded {len(contracts_df)} active contracts")
+
+# Step 2: Convert dates
+contracts_df['start_date'] = pd.to_datetime(contracts_df['start_date']).dt.date
+snapshot_date = datetime.now().date()
+
+# Step 3: Categorise contracts
+contracts_df['contract_category'] = 'active'
+contracts_df.loc[contracts_df['status'] == 'OFFBOARDING', 'contract_category'] = 'offboarding'
+contracts_df.loc[contracts_df['start_date'] > snapshot_date, 'contract_category'] = 'approved_not_started'
+
+# Step 4: Subsets (if needed downstream)
+active_contracts = contracts_df[contracts_df['contract_category'] == 'active']
+offboarding_contracts = contracts_df[contracts_df['contract_category'] == 'offboarding']
+approved_not_started_contracts = contracts_df[contracts_df['contract_category'] == 'approved_not_started']
+
+# Optional: if you only want to calculate metrics using 'active' + 'offboarding':
+revenue_contracts = contracts_df[contracts_df['contract_category'].isin(['active', 'offboarding'])]
+
 
 # Join contracts to availability to get valid matches
 logger.info("Joining contracts to plan availability...")

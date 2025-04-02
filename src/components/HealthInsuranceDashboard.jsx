@@ -234,8 +234,11 @@ const HealthInsuranceDashboard = () => {
             title: {
                 text: `${country} Health Insurance Plan Distribution`,
                 left: 'center',
+                top: '5%', // Add padding from the top
                 textStyle: {
-                    color: CustomColors.UIGrey800
+                    color: CustomColors.UIGrey800,
+                    fontSize: 15, // Adjust font size
+                    fontWeight: 'normal' // Reduce weight for less emphasis
                 }
             },
             tooltip: {
@@ -249,24 +252,23 @@ const HealthInsuranceDashboard = () => {
                 }
             },
             grid: {
-                left: '3%',
+                left: '20%', // Increased to accommodate longer labels
                 right: '4%',
-                bottom: '12%',
+                bottom: '3%',
                 containLabel: true
             },
             xAxis: {
-                type: 'category',
-                data: sortedPlans.map(plan => plan.name),
+                type: 'value', // Swapped to value for horizontal bars
                 axisLabel: {
-                    color: CustomColors.UIGrey700,
-                    rotate: 30,
-                    fontSize: 11
+                    formatter: (value) => value
                 }
             },
             yAxis: {
-                type: 'value',
+                type: 'category', // Swapped to category for horizontal bars
+                data: sortedPlans.map(plan => plan.name),
                 axisLabel: {
-                    formatter: (value) => value
+                    color: CustomColors.UIGrey700,
+                    fontSize: 11
                 }
             },
             series: [
@@ -281,7 +283,7 @@ const HealthInsuranceDashboard = () => {
                     })),
                     label: {
                         show: true,
-                        position: 'top',
+                        position: 'right', // Changed to right for horizontal bars
                         formatter: '{c}'
                     }
                 }
@@ -315,22 +317,22 @@ const HealthInsuranceDashboard = () => {
                 }
             },
             grid: {
-                left: '3%',
+                left: '20%', // Increased to accommodate longer labels
                 right: '4%',
                 bottom: '3%',
                 containLabel: true
             },
             xAxis: {
-                type: 'category',
-                data: countries,
+                type: 'value', // Swapped to value for horizontal bars
                 axisLabel: {
-                    color: CustomColors.UIGrey700
+                    formatter: (value) => value
                 }
             },
             yAxis: {
-                type: 'value',
+                type: 'category', // Swapped to category for horizontal bars
+                data: countries,
                 axisLabel: {
-                    formatter: (value) => value
+                    color: CustomColors.UIGrey700
                 }
             },
             series: [
@@ -339,7 +341,7 @@ const HealthInsuranceDashboard = () => {
                     type: 'bar',
                     data: countries.map(country => ({
                         value: summaryData[country].totalWithInsurance,
-                        value2: summaryData[country].coveragePercentage, // Store percentage for tooltip
+                        value2: summaryData[country].coveragePercentage,
                         itemStyle: {
                             color: summaryData[country].coveragePercentage >= 99
                                 ? CustomColors.SecretGarden
@@ -348,7 +350,7 @@ const HealthInsuranceDashboard = () => {
                     })),
                     label: {
                         show: true,
-                        position: 'top',
+                        position: 'right', // Changed to right for horizontal bars
                         formatter: (params) => {
                             return `${params.value} (${formatPercentage(summaryData[params.name].coveragePercentage)})`;
                         }
@@ -357,44 +359,6 @@ const HealthInsuranceDashboard = () => {
             ]
         };
     };
-
-    if (loading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <CircularProgress color="secondary" />
-            </Box>
-        );
-    }
-
-    if (error) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', flexDirection: 'column', p: 3 }}>
-                <Alert severity="error" sx={{ mb: 2, width: '100%', maxWidth: 600 }}>
-                    {error}
-                </Alert>
-                <Typography variant="body">
-                    Please check your network connection and API configuration.
-                </Typography>
-            </Box>
-        );
-    }
-
-    // If no data is available after loading
-    if (!processedData.snapshot_date) {
-        return (
-            <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                    No health insurance data is available.
-                </Alert>
-                <Box sx={{ mt: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                    <Typography variant="h6">Debug Information:</Typography>
-                    <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap', mt: 1 }}>
-                        Raw Data: {JSON.stringify(healthData, null, 2)}
-                    </Typography>
-                </Box>
-            </Container>
-        );
-    }
 
     // Sort countries by total employees with insurance (descending)
     const sortedCountries = Object.keys(processedData.countrySummary || {})
@@ -491,7 +455,18 @@ const HealthInsuranceDashboard = () => {
             {/* Individual country sections */}
             {sortedCountries.map(country => (
                 <Paper elevation={1} sx={{ p: 3, mb: 3 }} key={country}>
-                    <Typography variant="h5" gutterBottom>{country} Health Insurance Overview</Typography>
+                    <Typography
+                        variant="h5"
+                        gutterBottom
+                        sx={{
+                            backgroundColor: CustomColors.UIGrey200, // Filled background
+                            color: CustomColors.UIGrey800, // Contrasting font color
+                            padding: '8px 16px', // Add padding for better spacing
+                            borderRadius: '4px' // Optional: slight rounding for aesthetics
+                        }}
+                    >
+                        {country} Health Insurance Overview
+                    </Typography>
                     <Divider sx={{ mb: 2 }} />
 
                     <Grid container spacing={3}>
