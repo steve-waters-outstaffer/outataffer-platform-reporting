@@ -216,7 +216,7 @@ def main():
         active_df.loc[mask_future_start, 'contract_category'] = 'approved_not_started'
 
         # Current active contracts (already started, not offboarding)
-        current_active_df = active_df[active_df['contract_category'] == 'active']
+        current_active_df = active_df[active_df['contract_category'].isin(['active', 'offboarding'])]
 
         # Approved but not yet started
         approved_not_started_df = active_df[active_df['contract_category'] == 'approved_not_started']

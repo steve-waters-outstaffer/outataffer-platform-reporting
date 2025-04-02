@@ -61,6 +61,9 @@ contracts_df['contract_category'] = 'active'
 contracts_df.loc[contracts_df['status'] == 'OFFBOARDING', 'contract_category'] = 'offboarding'
 contracts_df.loc[contracts_df['start_date'] > snapshot_date, 'contract_category'] = 'approved_not_started'
 
+# Filter to include only active and offboarding
+contracts_df = contracts_df[contracts_df['contract_category'].isin(['active', 'offboarding'])]
+
 # Step 4: Subsets (if needed downstream)
 active_contracts = contracts_df[contracts_df['contract_category'] == 'active']
 offboarding_contracts = contracts_df[contracts_df['contract_category'] == 'offboarding']
