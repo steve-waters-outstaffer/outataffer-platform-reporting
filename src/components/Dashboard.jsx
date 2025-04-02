@@ -55,8 +55,8 @@ const Dashboard = () => {
             title: 'Health Insurance Analytics',
             description: 'Health insurance uptake and distribution',
             icon: <PeopleAltIcon sx={{ fontSize: 48, color: CustomColors.Cobalt }} />,
-            path: '/customer-dashboard',
-            available: false
+            path: '/health-dashboard',
+            available: true
         },
         {
             title: 'Customer Analytics',
