@@ -1,9 +1,11 @@
-from fastapi import FastAPI, Header, HTTPException, Depends
-from google.cloud import bigquery
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from routers import revenue, addons, health_insurance
 import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Outstaffer Dashboard API")
 
@@ -16,138 +18,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simple API key authentication - store in environment variable in production
-API_KEY = "dJ8fK2sP9qR5xV7zT3mA6cE1bN"
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# BigQuery client
-client = bigquery.Client()
-
-
-def verify_api_key(x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
-
-
-@app.get("/latest_metrics")
-async def latest_metrics(api_key: str = Depends(verify_api_key)):
-    """
-    Get the latest revenue metrics snapshot from BigQuery.
-    Returns all fields from the most recent snapshot.
-    """
-    try:
-        query = """
-            SELECT * 
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
-            WHERE snapshot_date = (
-                SELECT MAX(snapshot_date) 
-                FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
-            )
-        """
-        query_job = client.query(query)
-        results = query_job.result()
-
-        # Convert to dict and handle the first row
-        rows = list(results)
-        if not rows:
-            return {"error": "No data found"}
-
-        # Convert the first row to a dict (there should only be one row for latest date)
-        result_dict = dict(rows[0])
-
-        # Convert date objects to ISO format strings for JSON serialization
-        for key, value in result_dict.items():
-            if isinstance(value, datetime):
-                result_dict[key] = value.isoformat()
-
-        return result_dict
-
-    except Exception as e:
-        logger.error(f"Error fetching latest metrics: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@app.get("/revenue_trend")
-async def revenue_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
-    """
-    Get MRR trend data for the last X months (default 6).
-    Returns month and total_mrr for charting.
-    """
-    try:
-        query = f"""
-            SELECT 
-                snapshot_date,
-                total_mrr
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
-            WHERE snapshot_date >= DATE_SUB(
-                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`),
-                INTERVAL {months} MONTH
-            )
-            ORDER BY snapshot_date
-        """
-        query_job = client.query(query)
-        results = query_job.result()
-
-        trend_data = []
-        for row in results:
-            trend_data.append({
-                "month": row.snapshot_date.strftime("%b %Y"),  # Format as "Jan 2025"
-                "value": float(row.total_mrr),
-                "date": row.snapshot_date.isoformat()
-            })
-
-        return trend_data
-
-    except Exception as e:
-        logger.error(f"Error fetching revenue trend: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@app.get("/subscription_trend")
-async def subscription_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
-    """
-    Get subscription count trend for the last X months (default 6).
-    Returns month and total_active_subscriptions for charting.
-    """
-    try:
-        query = f"""
-            SELECT 
-                snapshot_date,
-                total_active_subscriptions
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
-            WHERE snapshot_date >= DATE_SUB(
-                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`),
-                INTERVAL {months} MONTH
-            )
-            ORDER BY snapshot_date
-        """
-        query_job = client.query(query)
-        results = query_job.result()
-
-        trend_data = []
-        for row in results:
-            trend_data.append({
-                "month": row.snapshot_date.strftime("%b %Y"),  # Format as "Jan 2025"
-                "value": int(row.total_active_subscriptions),
-                "date": row.snapshot_date.isoformat()
-            })
-
-        return trend_data
-
-    except Exception as e:
-        logger.error(f"Error fetching subscription trend: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
+# Include the routers
+app.include_router(revenue.router, prefix="/revenue", tags=["Revenue"])
+app.include_router(addons.router, prefix="/addons", tags=["Add-ons"])
+app.include_router(health_insurance.router, prefix="/health-insurance", tags=["Health Insurance"])
 
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "ok"}
+    from datetime import datetime
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
+@app.get("/test_bigquery")
+async def test_bigquery():
+    try:
+        query = """
+            SELECT 1 as test
+        """
+        query_job = client.query(query)
+        results = query_job.result()
+        rows = list(results)
+        return {"success": True, "result": dict(rows[0])}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

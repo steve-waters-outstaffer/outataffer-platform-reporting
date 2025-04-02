@@ -14,71 +14,43 @@ import {
     TableHead,
     TableBody,
     TableRow,
-    TableCell
+    TableCell,
+    Alert
 } from '@mui/material';
 import * as echarts from 'echarts';
-import EChartsComponent from './Chart'; // or wherever Chart.jsx is located
+import EChartsComponent from './Chart';
 import { CustomColors } from '../theme';
-
+import { fetchLatestRevenueMetrics, fetchRevenueTrend, fetchSubscriptionTrend, checkApiHealth } from '../services/ApiService';
 
 const RevenueDashboard = () => {
     const [subscriptionData, setSubscriptionData] = useState(null);
+    const [revenueTrend, setRevenueTrend] = useState([]);
+    const [subscriptionTrend, setSubscriptionTrend] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [usingFallback, setUsingFallback] = useState(false);
 
     useEffect(() => {
-        // Fetch the latest subscription data from your API
         const fetchData = async () => {
             try {
                 setLoading(true);
+                setError(null);
 
-                // This would be replaced with an actual API call to fetch the data
-                // from your backend which would query BigQuery
-                //
-                // const response = await fetch('/api/dashboard/subscription-metrics');
-                // const data = await response.json();
+                // Fetch all data in parallel
+                const [metricsData, revTrend, subTrend] = await Promise.all([
+                    fetchLatestRevenueMetrics(),
+                    fetchRevenueTrend(4), // Last 4 months
+                    fetchSubscriptionTrend(4) // Last 4 months
+                ]);
 
-                // For now, we'll use the actual data you provided from your BigQuery table
-                const data = {
-                    "snapshot_date": "2025-03-31",
-                    "total_active_subscriptions": 124,
-                    "approved_not_started": 1,
-                    "offboarding_contracts": 2,
-                    "total_contracts": 127,
-                    "revenue_generating_contracts": 126,
-                    "new_subscriptions": 3,
-                    "churned_subscriptions": 3,
-                    "retention_rate": 97.62,
-                    "churn_rate": 2.38,
-                    "eor_fees_mrr": 56997.13,
-                    "device_fees_mrr": 13538.38,
-                    "hardware_fees_mrr": 613.37,
-                    "software_fees_mrr": 79.14,
-                    "health_insurance_mrr": 10191.92,
-                    "placement_fees_monthly": 6077.88,
-                    "total_mrr": 81419.93,
-                    "total_monthly_revenue": 87497.81,
-                    "total_arr": 977039.21,
-                    "avg_subscription_value": 646.19,
-                    "recurring_revenue_percentage": 93.05,
-                    "one_time_revenue_percentage": 6.95,
-                    "total_customers": 42,
-                    "new_customers_this_month": 0,
-                    "addon_revenue_percentage": 29.99,
-                    "avg_days_from_approval_to_start": -224.74,
-                    "avg_days_until_start": 7.0,
-                    "plan_change_rate": 0.0,
-                    "laptops_count": 58,
-                    "contracts_with_dependents": 34,
-                    "avg_dependents_per_contract": 1.18
-                };
-
-                setSubscriptionData(data);
+                setSubscriptionData(metricsData);
+                setRevenueTrend(revTrend);
+                setSubscriptionTrend(subTrend);
                 setLoading(false);
             } catch (err) {
-                setError("Failed to load dashboard data");
-                setLoading(false);
                 console.error("Error fetching dashboard data:", err);
+                setError("Failed to load dashboard data. Please try again later.");
+                setLoading(false);
             }
         };
 
@@ -310,11 +282,15 @@ const RevenueDashboard = () => {
         };
     };
 
-    // Revenue trend chart options - Placeholder for future time series data
+    // Revenue trend chart options
     const getRevenueTrendOptions = () => {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr'];
-        const currentMonthIndex = 2; // Mar (index 0-based)
-        const mrrValues = [62000, 66000, 81420, null]; // Last value = snapshot, Apr = future
+        // Use the actual API data if available, otherwise use placeholder
+        const trendData = revenueTrend.length > 0 ? revenueTrend : [];
+        const months = trendData.map(item => item.month);
+        const values = trendData.map(item => item.value);
+
+        // Find the latest month index
+        const currentMonthIndex = trendData.length - 1;
 
         return {
             tooltip: {
@@ -347,16 +323,16 @@ const RevenueDashboard = () => {
                 {
                     name: 'MRR',
                     type: 'line',
-                    data: mrrValues,
+                    data: values,
                     symbol: 'circle',
-                    symbolSize: (value, params) => (params.dataIndex === 2 ? 10 : 6),
+                    symbolSize: (value, params) => (params.dataIndex === currentMonthIndex ? 10 : 6),
                     lineStyle: {
                         color: CustomColors.UIGrey400,
                         width: 2
                     },
                     itemStyle: {
                         color: (params) => {
-                            return params.dataIndex === 2
+                            return params.dataIndex === currentMonthIndex
                                 ? CustomColors.DeepSkyBlue
                                 : CustomColors.UIGrey300;
                         },
@@ -374,12 +350,15 @@ const RevenueDashboard = () => {
         };
     };
 
-
     // Active Subscriptions trend chart
     const getActiveSubscriptionsOptions = () => {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr'];
-        const currentMonthIndex = 2; // Mar (index 0-based)
-        const subsValues = [105, 118, 124, null]; // Last value = snapshot, Apr = future
+        // Use the actual API data if available, otherwise use placeholder
+        const trendData = subscriptionTrend.length > 0 ? subscriptionTrend : [];
+        const months = trendData.map(item => item.month);
+        const values = trendData.map(item => item.value);
+
+        // Find the latest month index
+        const currentMonthIndex = trendData.length - 1;
 
         return {
             tooltip: {
@@ -412,16 +391,16 @@ const RevenueDashboard = () => {
                 {
                     name: 'Active Subscriptions',
                     type: 'line',
-                    data: subsValues,
+                    data: values,
                     symbol: 'circle',
-                    symbolSize: (value, params) => (params.dataIndex === 2 ? 10 : 6),
+                    symbolSize: (value, params) => (params.dataIndex === currentMonthIndex ? 10 : 6),
                     lineStyle: {
                         color: CustomColors.UIGrey400,
                         width: 2
                     },
                     itemStyle: {
                         color: (params) => {
-                            return params.dataIndex === 2
+                            return params.dataIndex === currentMonthIndex
                                 ? CustomColors.DeepSkyBlue
                                 : CustomColors.UIGrey300;
                         },
@@ -449,8 +428,13 @@ const RevenueDashboard = () => {
 
     if (error) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <Typography variant="h5" color="error">{error}</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', flexDirection: 'column', p: 3 }}>
+                <Alert severity="error" sx={{ mb: 2, width: '100%', maxWidth: 600 }}>
+                    {error}
+                </Alert>
+                <Typography variant="body">
+                    Please check your network connection and API configuration.
+                </Typography>
             </Box>
         );
     }
@@ -462,8 +446,14 @@ const RevenueDashboard = () => {
                     Revenue Dashboard
                 </Typography>
                 <Typography variant="body" color="text.secondary" gutterBottom>
-                    Key revenue metrics as of {new Date(subscriptionData.snapshot_date).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    Key revenue metrics as of {new Date(subscriptionData.snapshot_date || new Date()).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </Typography>
+
+                {usingFallback && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                        Using development sample data - API endpoints not yet fully implemented
+                    </Alert>
+                )}
             </Paper>
 
             {/* Top row: Key metrics */}
@@ -493,7 +483,7 @@ const RevenueDashboard = () => {
                                 {formatCurrency(subscriptionData.total_arr)}
                             </Typography>
                             <Typography variant="bodySmall" color="text.secondary">
-                                {subscriptionData.addon_revenue_percentage}% from add-ons
+                                {(subscriptionData.addon_revenue_percentage || 0).toFixed(1)}% from add-ons
                             </Typography>
                         </CardContent>
                     </Card>
@@ -523,18 +513,20 @@ const RevenueDashboard = () => {
                                 {subscriptionData.total_customers}
                             </Typography>
                             <Typography variant="bodySmall" color="text.secondary">
-                                {subscriptionData.retention_rate}% retention rate
+                                TO-DO Net change
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
             </Grid>
 
-            <Typography variant="bodySmall" align="center" color="text.secondary" sx={{ mt: 1, mb: 4 }}>
-                Chart data will be populated with historical values as more data accumulates
-            </Typography>
+            {revenueTrend.length === 0 && (
+                <Typography variant="bodySmall" align="center" color="text.secondary" sx={{ mt: 1, mb: 4 }}>
+                    Chart data will be populated with historical values as more data accumulates
+                </Typography>
+            )}
 
-            {/* Middle row: Revenue trend charts - Placeholder for future time series data */}
+            {/* Middle row: Revenue trend charts */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
                 <Grid item xs={12} md={6}>
                     <Paper elevation={1} sx={{ p: 2, mb: 1 }}>
@@ -555,80 +547,79 @@ const RevenueDashboard = () => {
                 </Grid>
             </Grid>
 
-            {/* Revenue breakdown table */}
             <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h5" gutterBottom>Monthly Revenue Summary</Typography>
+                <Typography variant="h4" gutterBottom>Monthly Revenue Summary</Typography>
                 <Divider sx={{ mb: 2 }} />
 
                 <Table>
                     <TableHead>
-                        <TableRow>
-                            <TableCell>Revenue Type</TableCell>
-                            <TableCell align="right">Amount</TableCell>
-                            <TableCell align="right">% of Monthly Revenue</TableCell>
+                        <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Revenue Type</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>% of Monthly Revenue</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {/* Recurring */}
-                        <TableRow>
+                        <TableRow hover>
                             <TableCell>EOR Fees</TableCell>
                             <TableCell align="right">{formatCurrency(subscriptionData.eor_fees_mrr)}</TableCell>
                             <TableCell align="right">
-                                {formatPercentage(subscriptionData.eor_fees_mrr / subscriptionData.total_monthly_revenue * 100)}
+                                {formatPercentage((subscriptionData.eor_fees_mrr || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
                             </TableCell>
                         </TableRow>
-                        <TableRow>
+                        <TableRow hover>
                             <TableCell>Device Fees</TableCell>
                             <TableCell align="right">{formatCurrency(subscriptionData.device_fees_mrr)}</TableCell>
                             <TableCell align="right">
-                                {formatPercentage(subscriptionData.device_fees_mrr / subscriptionData.total_monthly_revenue * 100)}
+                                {formatPercentage((subscriptionData.device_fees_mrr || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
                             </TableCell>
                         </TableRow>
-                        <TableRow>
+                        <TableRow hover>
                             <TableCell>Health Insurance</TableCell>
                             <TableCell align="right">{formatCurrency(subscriptionData.health_insurance_mrr)}</TableCell>
                             <TableCell align="right">
-                                {formatPercentage(subscriptionData.health_insurance_mrr / subscriptionData.total_monthly_revenue * 100)}
+                                {formatPercentage((subscriptionData.health_insurance_mrr || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
                             </TableCell>
                         </TableRow>
-                        <TableRow>
+                        <TableRow hover>
                             <TableCell>Hardware Fees</TableCell>
                             <TableCell align="right">{formatCurrency(subscriptionData.hardware_fees_mrr)}</TableCell>
                             <TableCell align="right">
-                                {formatPercentage(subscriptionData.hardware_fees_mrr / subscriptionData.total_monthly_revenue * 100)}
+                                {formatPercentage((subscriptionData.hardware_fees_mrr || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
                             </TableCell>
                         </TableRow>
-                        <TableRow>
+                        <TableRow hover>
                             <TableCell>Software Fees</TableCell>
                             <TableCell align="right">{formatCurrency(subscriptionData.software_fees_mrr)}</TableCell>
                             <TableCell align="right">
-                                {formatPercentage(subscriptionData.software_fees_mrr / subscriptionData.total_monthly_revenue * 100)}
+                                {formatPercentage((subscriptionData.software_fees_mrr || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
                             </TableCell>
                         </TableRow>
 
                         {/* Subtotal Recurring */}
-                        <TableRow sx={{ backgroundColor: CustomColors.UIGrey100 }}>
-                            <TableCell><strong>Subtotal (Recurring MRR)</strong></TableCell>
-                            <TableCell align="right"><strong>{formatCurrency(subscriptionData.total_mrr)}</strong></TableCell>
-                            <TableCell align="right"><strong>
-                                {formatPercentage(subscriptionData.total_mrr / subscriptionData.total_monthly_revenue * 100)}
-                            </strong></TableCell>
+                        <TableRow sx={{ backgroundColor: CustomColors.MidnightBlue }}>
+                            <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Subtotal (Recurring MRR)</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>{formatCurrency(subscriptionData.total_mrr)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>
+                                {formatPercentage((subscriptionData.total_mrr || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
+                            </TableCell>
                         </TableRow>
 
                         {/* One-time */}
-                        <TableRow>
+                        <TableRow hover>
                             <TableCell>Placement Fees (One-time)</TableCell>
                             <TableCell align="right">{formatCurrency(subscriptionData.placement_fees_monthly)}</TableCell>
                             <TableCell align="right">
-                                {formatPercentage(subscriptionData.placement_fees_monthly / subscriptionData.total_monthly_revenue * 100)}
+                                {formatPercentage((subscriptionData.placement_fees_monthly || 0) / (subscriptionData.total_monthly_revenue || 1) * 100)}
                             </TableCell>
                         </TableRow>
 
                         {/* Grand Total */}
-                        <TableRow sx={{ backgroundColor: CustomColors.UIGrey100 }}>
-                            <TableCell><strong>Total Monthly Revenue</strong></TableCell>
-                            <TableCell align="right"><strong>{formatCurrency(subscriptionData.total_monthly_revenue)}</strong></TableCell>
-                            <TableCell align="right"><strong>100%</strong></TableCell>
+                        <TableRow sx={{ backgroundColor: CustomColors.DeepSkyBlue }}>
+                            <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Total Monthly Revenue</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>{formatCurrency(subscriptionData.total_monthly_revenue)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>100%</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -636,29 +627,6 @@ const RevenueDashboard = () => {
 
 
 
-            {/* Hardware assets */}
-            <Paper elevation={1} sx={{ p: 3 }}>
-                <Typography variant="h5" gutterBottom>Hardware Assets</Typography>
-                <Divider sx={{ mb: 2 }} />
-
-                <Grid container spacing={4}>
-                    <Grid item xs={12} md={6}>
-                        <Box sx={{ p: 2, border: `1px solid ${CustomColors.UIGrey300}`, borderRadius: 1 }}>
-                            <Typography variant="bodySmall" color="text.secondary">Laptops</Typography>
-                            <Typography variant="h3" gutterBottom>{subscriptionData.laptops_count}</Typography>
-                        </Box>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                        <Box sx={{ p: 2, border: `1px solid ${CustomColors.UIGrey300}`, borderRadius: 1 }}>
-                            <Typography variant="bodySmall" color="text.secondary">Contracts with Dependents</Typography>
-                            <Typography variant="h3" gutterBottom>{subscriptionData.contracts_with_dependents}</Typography>
-                            <Typography variant="bodySmall" color="text.secondary">
-                                Avg. {subscriptionData.avg_dependents_per_contract.toFixed(1)} dependents per contract
-                            </Typography>
-                        </Box>
-                    </Grid>
-                </Grid>
-            </Paper>
         </Container>
     );
 };
