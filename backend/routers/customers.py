@@ -58,7 +58,7 @@ async def top_customers(limit: int = 10, api_key: str = Depends(verify_api_key))
                     SELECT MAX(snapshot_date) 
                     FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
                 )
-                AND metric_type = 'top_customer'
+                AND metric_type = 'top_customer_by_arr'
             ORDER BY rank ASC
             LIMIT {limit}
         """

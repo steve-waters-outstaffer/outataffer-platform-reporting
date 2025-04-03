@@ -415,6 +415,22 @@ for idx, row in top_customers.iterrows():
         'rank': idx + 1
     })
 
+# Add metric for total ARR concentration of top 10 customers
+top10_total_arr = top_customers['total_arr'].sum()
+top10_percentage = (top10_total_arr / total_company_arr) * 100 if total_company_arr > 0 else 0
+
+metrics.append({
+    'snapshot_date': SNAPSHOT_DATE,
+    'metric_type': 'revenue_concentration',
+    'id': 'TOP_10',
+    'label': 'Top 10 Customer Revenue %',
+    'count': None,
+    'value_aud': None,
+    'percentage': round(top10_percentage, 2),
+    'rank': None
+})
+
+
 # Create metrics DataFrame
 metrics_df = pd.DataFrame(metrics)
 
