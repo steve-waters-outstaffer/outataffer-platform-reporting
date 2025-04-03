@@ -15,14 +15,18 @@ import {
     TableBody,
     TableRow,
     TableCell,
+    Button,
     Alert
 } from '@mui/material';
 import * as echarts from 'echarts';
 import EChartsComponent from './Chart';
 import { CustomColors } from '../theme';
 import { fetchLatestHealthInsuranceMetrics } from '../services/ApiService';
+import { useNavigate } from 'react-router-dom';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const HealthInsuranceDashboard = () => {
+    const navigate = useNavigate();
     const [healthData, setHealthData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -370,14 +374,43 @@ const HealthInsuranceDashboard = () => {
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Health Insurance Dashboard
-                </Typography>
-                <Typography variant="body" color="text.secondary" gutterBottom>
-                    Health insurance metrics as of {new Date(processedData.snapshot_date).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </Typography>
+            <Paper
+                elevation={1}
+                sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+                <Box>
+                    <Typography variant="h4" component="h1" gutterBottom>
+                        Health Insurance Dashboard
+                    </Typography>
+                    <Typography variant="body" color="text.secondary" gutterBottom>
+                        Health insurance metrics as of {new Date(processedData.snapshot_date).toLocaleDateString('en-AU', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    })}
+                    </Typography>
+                </Box>
+                <Button
+                    startIcon={<ArrowBackIcon fontSize="small" />}
+                    onClick={() => navigate('/dashboard')}
+                    sx={{
+                        fontSize: '0.725rem',
+                        px: 1,
+                        py: 0.25,
+                        minWidth: 'unset',
+                        borderRadius: '20px',
+                        border: '1px solid',
+                        borderColor: CustomColors.DeepSkyBlue,
+                        color: CustomColors.DeepSkyBlue,
+                        '&:hover': {
+                            backgroundColor: `${CustomColors.DeepSkyBlue}10`
+                        }
+                    }}
+                >
+                    Main Dashboard
+                </Button>
             </Paper>
+
 
             {/* Top row: Key metrics cards */}
             <Grid container spacing={3} sx={{ mb: 3 }}>

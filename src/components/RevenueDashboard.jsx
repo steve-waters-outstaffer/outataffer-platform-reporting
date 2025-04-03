@@ -15,14 +15,20 @@ import {
     TableBody,
     TableRow,
     TableCell,
-    Alert
+    Alert,
+    Button
 } from '@mui/material';
 import * as echarts from 'echarts';
 import EChartsComponent from './Chart';
 import { CustomColors } from '../theme';
 import { fetchLatestRevenueMetrics, fetchRevenueTrend, fetchSubscriptionTrend, checkApiHealth } from '../services/ApiService';
+import { useNavigate } from 'react-router-dom';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+
+
 
 const RevenueDashboard = () => {
+    const navigate = useNavigate();
     const [subscriptionData, setSubscriptionData] = useState(null);
     const [revenueTrend, setRevenueTrend] = useState([]);
     const [subscriptionTrend, setSubscriptionTrend] = useState([]);
@@ -441,20 +447,49 @@ const RevenueDashboard = () => {
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Revenue Dashboard
-                </Typography>
-                <Typography variant="body" color="text.secondary" gutterBottom>
-                    Key revenue metrics as of {new Date(subscriptionData.snapshot_date || new Date()).toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </Typography>
+            <Paper
+                elevation={1}
+                sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+                <Box>
+                    <Typography variant="h4" component="h1" gutterBottom>
+                        Revenue Dashboard
+                    </Typography>
+                    <Typography variant="body" color="text.secondary" gutterBottom>
+                        Key revenue metrics as of {new Date(subscriptionData.snapshot_date || new Date()).toLocaleDateString('en-AU', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    })}
+                    </Typography>
 
-                {usingFallback && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                        Using development sample data - API endpoints not yet fully implemented
-                    </Alert>
-                )}
+                    {usingFallback && (
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                            Using development sample data – API endpoints not yet fully implemented
+                        </Alert>
+                    )}
+                </Box>
+                <Button
+                    startIcon={<ArrowBackIcon fontSize="small" />}
+                    onClick={() => navigate('/dashboard')}
+                    sx={{
+                        fontSize: '0.725rem',
+                        px: 1,
+                        py: 0.25,
+                        minWidth: 'unset',
+                        borderRadius: '20px',
+                        border: '1px solid',
+                        borderColor: CustomColors.DeepSkyBlue,
+                        color: CustomColors.DeepSkyBlue,
+                        '&:hover': {
+                            backgroundColor: `${CustomColors.DeepSkyBlue}10`
+                        }
+                    }}
+                >
+                    Main Dashboard
+                </Button>
             </Paper>
+
 
             {/* Top row: Key metrics */}
             <Grid container spacing={3} sx={{ mb: 3 }}>

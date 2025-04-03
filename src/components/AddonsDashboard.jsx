@@ -4,6 +4,7 @@ import {
     Grid,
     Paper,
     Typography,
+    Button,
     CircularProgress,
     Container,
     Table,
@@ -18,6 +19,10 @@ import {
 import { CustomColors } from '../theme';
 import { fetchLatestAddonMetrics } from '../services/ApiService';
 import EChartsComponent from './Chart';
+import { useNavigate } from 'react-router-dom';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+
+
 
 const CATEGORY_ORDER = [
     'plan',
@@ -34,6 +39,7 @@ const AddonsDashboard = () => {
     const [addonData, setAddonData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -140,14 +146,39 @@ const AddonsDashboard = () => {
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Add-ons Overview
-                </Typography>
-                <Typography variant="body" color="text.secondary" gutterBottom>
-                    Subscriptions with add-on optins for devices, software, and hardware add-ons as of {addonData?.[0]?.snapshot_date || 'latest'}
-                </Typography>
+            <Paper
+                elevation={1}
+                sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+                <Box>
+                    <Typography variant="h4" component="h1" gutterBottom>
+                        Add-ons Overview
+                    </Typography>
+                    <Typography variant="body" color="text.secondary" gutterBottom>
+                        Subscriptions with add-on options for devices, software, and hardware as of {addonData?.[0]?.snapshot_date || 'latest'}
+                    </Typography>
+                </Box>
+                <Button
+                    startIcon={<ArrowBackIcon fontSize="small" />}
+                    onClick={() => navigate('/dashboard')}
+                    sx={{
+                        fontSize: '0.725rem',
+                        px: 1,
+                        py: 0.25,
+                        minWidth: 'unset',
+                        borderRadius: '20px',
+                        border: '1px solid',
+                        borderColor: CustomColors.DeepSkyBlue,
+                        color: CustomColors.DeepSkyBlue,
+                        '&:hover': {
+                            backgroundColor: `${CustomColors.DeepSkyBlue}10`
+                        }
+                    }}
+                >
+                    Main Dashboard
+                </Button>
             </Paper>
+
 
             <Grid container spacing={3} sx={{ mb: 3 }}>
                 {[

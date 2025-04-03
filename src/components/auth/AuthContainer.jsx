@@ -150,7 +150,13 @@ const AuthContainer = () => {
                 <Button
                     fullWidth
                     variant="outlined"
-                    color="default"
+                    sx={{
+                        borderColor: 'grey.400',
+                        color: 'text.primary',
+                        backgroundColor: 'background.paper',
+                        '&:hover': {
+                            backgroundColor: 'grey.100',
+                        }}}
                     startIcon={<GoogleIcon />}
                     onClick={handleGoogleSignIn}
                     disabled={loading}

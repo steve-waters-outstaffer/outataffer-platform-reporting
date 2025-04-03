@@ -60,10 +60,10 @@ const Dashboard = () => {
         },
         {
             title: 'Customer Analytics',
-            description: 'Customer and Company reviews',
-            icon: <BarChartIcon sx={{ fontSize: 48, color: CustomColors.Meadow }} />,
-            path: '/business-dashboard',
-            available: false
+            description: 'Customer and Company metrics and analysis',
+            icon: <BusinessIcon sx={{ fontSize: 48, color: CustomColors.Meadow }} />,
+            path: '/customer-dashboard',
+            available: true // Change this from false to true
         },
         {
             title: 'Geographic Distribution',

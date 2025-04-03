@@ -167,3 +167,64 @@ export const checkApiHealth = async () => {
         return { status: 'offline', isLive: false };
     }
 };
+
+// Customer metrics endpoints
+export const fetchLatestCustomerMetrics = async () => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/customers/latest?_=${timestamp}`);
+    } catch (error) {
+        console.warn("Customer API error, using fallback data:", error);
+        // Return hardcoded fallback data for development
+        return [
+            {"snapshot_date":"2025-04-02","metric_type":"total_customers","id":"total_customers","label":"Total Customers","count":42,"value_aud":null,"percentage":null,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"active_customers","id":"active_customers","label":"Active Customers","count":38,"value_aud":null,"percentage":90.5,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"new_customers","id":"new_customers","label":"New Customers This Month","count":2,"value_aud":null,"percentage":4.8,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"churned_customers","id":"churned_customers","label":"Churned Customers","count":1,"value_aud":null,"percentage":2.4,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"active_contracts","id":"active_contracts","label":"Active Contracts","count":126,"value_aud":null,"percentage":null,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"avg_contracts_per_customer","id":"avg_contracts_per_customer","label":"Average Contracts per Customer","count":3,"value_aud":null,"percentage":null,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"avg_arr_per_customer","id":"avg_arr_per_customer","label":"Average ARR per Customer","count":null,"value_aud":25711.56,"percentage":null,"rank":null},
+            {"snapshot_date":"2025-04-02","metric_type":"revenue_concentration","id":"revenue_concentration","label":"Top 10 Customer Revenue %","count":null,"value_aud":null,"percentage":72.4,"rank":null}
+        ];
+    }
+};
+
+export const fetchTopCustomers = async (limit = 10) => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/customers/top-customers?limit=${limit}&_=${timestamp}`);
+    } catch (error) {
+        console.warn("Top customers API error, using fallback data:", error);
+        // Return hardcoded fallback data for development
+        return [
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company123","label":"Global Tech Solutions","count":15,"value_aud":124500.0,"percentage":12.75,"rank":1},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company456","label":"Pacific Digital Services","count":12,"value_aud":98750.0,"percentage":10.12,"rank":2},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company789","label":"Asia Connect Partners","count":10,"value_aud":87300.0,"percentage":8.94,"rank":3},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company012","label":"Oceanic Business Systems","count":9,"value_aud":76200.0,"percentage":7.81,"rank":4},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company345","label":"Eastern Digital Solutions","count":8,"value_aud":68500.0,"percentage":7.02,"rank":5},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company678","label":"Manila Tech Hub","count":7,"value_aud":62400.0,"percentage":6.39,"rank":6},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company901","label":"Bangkok Data Services","count":6,"value_aud":54800.0,"percentage":5.62,"rank":7},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company234","label":"Singapore Solutions Group","count":5,"value_aud":48700.0,"percentage":4.99,"rank":8},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company567","label":"Vietnam IT Services","count":4,"value_aud":43200.0,"percentage":4.43,"rank":9},
+            {"snapshot_date":"2025-04-02","metric_type":"top_customer","id":"company890","label":"Australian Digital Agency","count":3,"value_aud":38900.0,"percentage":3.99,"rank":10}
+        ];
+    }
+};
+
+export const fetchCustomerTrend = async (months = 6) => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/customers/trend?months=${months}&_=${timestamp}`);
+    } catch (error) {
+        console.warn("Customer trend API error, using fallback data:", error);
+        // Return mock trend data for development
+        return [
+            { month: "Nov 2024", value: 28, date: "2024-11-30" },
+            { month: "Dec 2024", value: 31, date: "2024-12-31" },
+            { month: "Jan 2025", value: 34, date: "2025-01-31" },
+            { month: "Feb 2025", value: 36, date: "2025-02-28" },
+            { month: "Mar 2025", value: 38, date: "2025-03-31" },
+            { month: "Apr 2025", value: null, date: "2025-04-30" }
+        ];
+    }
+};
