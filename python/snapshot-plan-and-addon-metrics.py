@@ -6,6 +6,14 @@ import logging
 import sys
 import argparse
 from snapshot_utils import write_snapshot_to_bigquery
+from metrics_utils import (
+    get_active_contracts,
+    get_plan_addons,
+    get_plans,
+    get_contracts_with_addon_data,
+    aggregate_addons,
+    map_device_to_os
+)
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Generate plan and add-on metrics snapshot')
@@ -25,78 +33,22 @@ SNAPSHOT_DATE = datetime.now().date()
 logger.info(f"Processing snapshot for: {SNAPSHOT_DATE}")
 
 # Load lookup tables and metadata
-addons_df = client.query("""
-    SELECT id, label, type, meta, isActive FROM `outstaffer-app-prod.firestore_exports.plan_add_ons`
-""").to_dataframe()
+addons_df = get_plan_addons()
+plans_df = get_plans()
 
-plans_df = client.query("""
-    SELECT id, name FROM `outstaffer-app-prod.firestore_exports.plans` WHERE active = TRUE
-""").to_dataframe()
+# Get active contracts (started, not future)
+active_contracts = get_active_contracts(SNAPSHOT_DATE)
+active_contract_ids = active_contracts['contract_id'].tolist()
+logger.info(f"Found {len(active_contract_ids)} active contracts")
 
-# Core query: pull all valid, started, active contracts
-
-# Step 1: Load contracts with mapped_status = 'Active'
-contracts_df = client.query("""
-    SELECT
-        ec.id AS contract_id,
-        ec.companyId,
-        ec.employmentLocation.country AS country,
-        ec.role.preferredStartDate AS start_date,
-        ec.status,
-        sm.mapped_status,
-        ec.benefits.healthInsurance AS insurance_plan,
-        ec.benefits.addOns.DEPENDENT AS dependent_count
-    FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
-    JOIN `outstaffer-app-prod.firestore_exports.companies` c ON ec.companyId = c.id
-    JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm ON ec.status = sm.contract_status
-    WHERE (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
-      AND sm.mapped_status = 'Active'
-""").to_dataframe()
-
-# Step 2: Convert dates
-contracts_df['start_date'] = pd.to_datetime(contracts_df['start_date']).dt.date
-snapshot_date = datetime.now().date()
-
-# Step 3: Categorise contracts
-contracts_df['contract_category'] = 'active'
-contracts_df.loc[contracts_df['status'] == 'OFFBOARDING', 'contract_category'] = 'offboarding'
-contracts_df.loc[contracts_df['start_date'] > snapshot_date, 'contract_category'] = 'approved_not_started'
-
-# Filter to include only active and offboarding
-contracts_df = contracts_df[contracts_df['contract_category'].isin(['active', 'offboarding'])]
-
-# Step 4: Subsets (if needed downstream)
-active_contracts = contracts_df[contracts_df['contract_category'] == 'active']
-offboarding_contracts = contracts_df[contracts_df['contract_category'] == 'offboarding']
-approved_not_started_contracts = contracts_df[contracts_df['contract_category'] == 'approved_not_started']
-
-# Optional: if you only want to calculate metrics using 'active' + 'offboarding':
-revenue_contracts = contracts_df[contracts_df['contract_category'].isin(['active', 'offboarding'])]
-
-
-# Metric aggregation functions
-def aggregate_addons(df, col, addon_type):
-    extracted = df[["contract_id", col]].dropna()
-    if extracted.empty:
-        return pd.DataFrame(columns=['addon_id', 'contract_count'])
-
-    exploded = extracted.explode(col)
-    exploded = exploded[exploded[col].notnull()]
-
-    def extract_addon_key(x):
-        if isinstance(x, dict):
-            return x.get('key') or "OTHER"
-        return str(x) if x else "OTHER"
-
-    exploded['addon_id'] = exploded[col].apply(extract_addon_key)
-    return exploded.groupby('addon_id').contract_id.nunique().reset_index(name='contract_count')
+# Get add-on data for active contracts
+contracts_df = get_contracts_with_addon_data(active_contract_ids, SNAPSHOT_DATE)
 
 # Begin metric construction
 metrics = []
 
 total_contracts = len(contracts_df)
-logger.info(f"Total active & started contracts: {total_contracts}")
+logger.info(f"Total active contracts with add-on data: {total_contracts}")
 
 # Plan distribution (ensure all active plans are included)
 plan_counts = contracts_df.groupby('plan_id').contract_id.nunique().reset_index(name='contract_count')
@@ -167,21 +119,7 @@ for addon_type, col in [('hardware_addon', 'hardware'), ('software_addon', 'soft
 
 # OS breakdown from device meta
 device_meta = addons_df[addons_df['type'] == 'DEVICE'][['id', 'label', 'meta']]
-os_map = []
-for _, row in device_meta.iterrows():
-    os_type = "UNKNOWN"
-    meta_os = row['meta'].get('operatingSystem') if isinstance(row['meta'], dict) else None
-    if meta_os:
-        os_type = meta_os
-    elif row['label']:
-        label = row['label'].lower()
-        if 'windows' in label or 'win' in label:
-            os_type = 'Windows'
-        elif 'mac' in label or 'apple' in label:
-            os_type = 'MacOS'
-    os_map.append({"device_id": row['id'], "os_type": os_type})
-
-os_df = pd.DataFrame(os_map)
+os_df = map_device_to_os(device_meta)
 os_usage = contracts_df[contracts_df['device_id'].notnull()].groupby('device_id').contract_id.nunique().reset_index(name='count')
 os_summary = os_df.merge(os_usage, how='left', on='device_id').fillna({'os_type': 'OTHER', 'count': 0})
 os_totals = os_summary.groupby('os_type').agg({'count': 'sum'}).reset_index()
