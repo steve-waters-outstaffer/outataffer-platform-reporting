@@ -1,426 +1,188 @@
 # snapshot-revenue-metrics.py
 import pandas as pd
-import numpy as np
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from google.cloud import bigquery
 import logging
 import sys
-import json
 import argparse
+from metrics_utils import (
+    get_active_contracts, get_offboarding_contracts, get_inactive_contracts,
+    get_approved_not_started_contracts, get_companies, get_fx_rates,
+    get_revenue_breakdown, get_individual_revenue_metrics
+)
 from snapshot_utils import write_snapshot_to_bigquery
 
-# Set up argument parser
+# Argument parser
 parser = argparse.ArgumentParser(description='Generate revenue metrics snapshot')
 parser.add_argument('--dry-run', action='store_true', help='Validate without writing data')
 args = parser.parse_args()
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+# Logging setup
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger('subscription-snapshot')
 
-# Initialize BigQuery client
+# BigQuery client and table
 client = bigquery.Client()
 table_id = 'outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot'
 
 def main():
-    try:
-        # 1. Define reporting date (today's date for point-in-time snapshot)
-        snapshot_date = datetime.now().date()
-        logger.info(f"Processing snapshot for: {snapshot_date}")
+    SNAPSHOT_DATE = datetime.now().date()
+    logger.info(f"Processing snapshot for: {SNAPSHOT_DATE}")
 
-        # 2. Load company data, status mapping, and FX rates
-        logger.info("Loading reference data from BigQuery...")
+    # Fetch data using utils
+    active_df = get_active_contracts(SNAPSHOT_DATE)
+    offboarding_df = get_offboarding_contracts(SNAPSHOT_DATE)
+    inactive_df = get_inactive_contracts(SNAPSHOT_DATE)
+    approved_not_started_df = get_approved_not_started_contracts(SNAPSHOT_DATE)
+    companies_df = get_companies()
 
-        query_companies = """
-        SELECT id, companyName, demoCompany, createdAt, industry, size 
-        FROM `outstaffer-app-prod.firestore_exports.companies`
-        WHERE demoCompany IS NULL OR demoCompany = FALSE
-        """
+    # Ensure date columns are in datetime format
+    for df in [active_df, offboarding_df, inactive_df, approved_not_started_df, companies_df]:
+        if 'start_date' in df.columns:
+            df['start_date'] = pd.to_datetime(df['start_date'], errors='coerce')
+        if 'createdAt' in df.columns:
+            df['createdAt'] = pd.to_datetime(df['createdAt'], errors='coerce')
+        if 'updatedAt' in df.columns:
+            df['updatedAt'] = pd.to_datetime(df['updatedAt'], errors='coerce')
 
-        query_status_mapping = """
-        SELECT * FROM `outstaffer-app-prod.lookup_tables.contract_status_mapping`
-        """
+    # Combine revenue-generating contracts (active + offboarding)
+    revenue_contracts_df = pd.concat([active_df, offboarding_df]).drop_duplicates(subset='contract_id')
+    all_contracts_df = pd.concat([revenue_contracts_df, approved_not_started_df]).drop_duplicates(subset='contract_id')
 
-        query_fx_rates = """
-        SELECT * FROM `outstaffer-app-prod.dashboard_metrics.fx_rates`
-        WHERE target_currency = 'AUD'
-        """
+    # Calculate individual revenue metrics
+    revenue_metrics_df = get_individual_revenue_metrics(revenue_contracts_df, SNAPSHOT_DATE)
 
-        try:
-            companies_df = client.query(query_companies).to_dataframe()
-            logger.info(f"Loaded {len(companies_df)} companies")
+    # Aggregate revenue breakdown
+    revenue_breakdown = get_revenue_breakdown(revenue_contracts_df, SNAPSHOT_DATE)
 
-            status_mapping_df = client.query(query_status_mapping).to_dataframe()
-            logger.info(f"Loaded {len(status_mapping_df)} status mappings")
+    # New and churned subscriptions
+    month_start = SNAPSHOT_DATE.replace(day=1)
+    next_month = (pd.Timestamp(month_start) + pd.offsets.MonthEnd(0) + pd.offsets.Day(1)).date()
+    new_df = active_df[(active_df['start_date'].dt.date >= month_start) & (active_df['start_date'].dt.date < next_month)]
+    churned_df = inactive_df[(inactive_df['updatedAt'].dt.date >= month_start) & (inactive_df['updatedAt'].dt.date < next_month)]
 
-            fx_rates_df = client.query(query_fx_rates).to_dataframe()
-            logger.info(f"Loaded {len(fx_rates_df)} FX rates")
-        except Exception as e:
-            logger.error(f"Error loading reference data: {str(e)}")
-            raise
+    # Metrics calculations
+    total_active_subscriptions = len(active_df)
+    approved_not_started_count = len(approved_not_started_df)
+    offboarding_count = len(offboarding_df)
+    total_contracts = len(all_contracts_df)
+    revenue_contracts_count = len(revenue_contracts_df)
+    new_subscriptions = len(new_df)
+    churned_subscriptions = len(churned_df)
+    retention_rate = (1 - churned_subscriptions / revenue_contracts_count) * 100 if revenue_contracts_count > 0 else 0
+    churn_rate = (churned_subscriptions / revenue_contracts_count) * 100 if revenue_contracts_count > 0 else 0
 
-        # 3. Load contract data with calculated fields using UNNEST approach
-        logger.info("Loading contract data with calculations...")
+    # Revenue metrics from breakdown
+    eor_fees_mrr = revenue_breakdown['eor_fees_mrr']
+    device_fees_mrr = revenue_breakdown['device_fees_mrr']
+    hardware_fees_mrr = revenue_breakdown['hardware_fees_mrr']
+    software_fees_mrr = revenue_breakdown['software_fees_mrr']
+    health_fees_mrr = revenue_breakdown['health_fees_mrr']
+    placement_fees = revenue_breakdown['placement_fees']
+    finalisation_fees = revenue_breakdown['finalisation_fees']
+    one_time_fees = revenue_breakdown['one_time_fees']
+    total_mrr = revenue_breakdown['total_mrr']
+    total_monthly_revenue = revenue_breakdown['total_monthly_revenue']
+    total_arr = revenue_breakdown['total_arr']
+    addon_revenue_percentage = revenue_breakdown['addon_percentage']
 
-        # Updated query using UNNEST for correct calculation data access
-        query_contracts_with_calculations = """
-        SELECT 
-            ec.id AS contract_id,
-            ec.status,
-            ec.companyId,
-            ec.employmentLocation.country AS country,
-            ec.createdAt,
-            ec.updatedAt,
-            ec.role.preferredStartDate AS start_date,
-            IFNULL(ec.benefits.addOns.DEPENDENT, 0) AS dependent_count,
-            ec.benefits.healthInsurance AS health_plan,
-            sm.mapped_status,
-            
-            -- Extract fee values directly using correct paths
-            CAST(IFNULL((
-              SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.EOR.amount
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            ), '0') AS FLOAT64) AS eor_fees,
-            
-            CAST(IFNULL((
-              SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Device.amount
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            ), '0') AS FLOAT64) AS device_fees,
-            
-            CAST(IFNULL((
-              SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Hardware.amount
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            ), '0') AS FLOAT64) AS hardware_fees,
-            
-            CAST(IFNULL((
-              SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Software.amount
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            ), '0') AS FLOAT64) AS software_fees,
-            
-            CAST(IFNULL((
-              SELECT calc.monthlyCharges.employerCharges.healthCharges.total.amount
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            ), '0') AS FLOAT64) AS health_fees,
-            
-            CAST(IFNULL((
-              SELECT calc.monthlyCharges.taasCharges.totalFee.value.amount
-              FROM UNNEST(ec.calculations) AS calc
-              ORDER BY calc.calculatedAt DESC
-              LIMIT 1
-            ), '0') AS FLOAT64) AS placement_fees
-            
-        FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
-        LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
-          ON ec.status = sm.contract_status
-        LEFT JOIN `outstaffer-app-prod.firestore_exports.companies` c
-          ON ec.companyId = c.id
-        WHERE (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
-          AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)  -- Exclude demo companies
-          AND ec.calculations IS NOT NULL AND ARRAY_LENGTH(ec.calculations) > 0
-        """
+    # Additional metrics
+    total_customers = revenue_contracts_df['companyId'].nunique()
+    new_customers_this_month = companies_df[(companies_df['createdAt'].dt.date >= month_start) &
+                                            (companies_df['createdAt'].dt.date < next_month)]['id'].nunique()
+    avg_subscription_value = total_mrr / revenue_contracts_count if revenue_contracts_count > 0 else 0
+    avg_days_from_approval_to_start = all_contracts_df['start_date'].sub(all_contracts_df['createdAt']).dt.days.mean()
+    avg_days_until_start = (approved_not_started_df['start_date'] - pd.Timestamp(SNAPSHOT_DATE)).dt.days.mean() if not approved_not_started_df.empty else 0
+    plan_change_rate = 0.0  # Requires historical data
+    laptops_count = len(revenue_metrics_df[revenue_metrics_df['device_fees_aud'] > 0])
 
-        try:
-            contracts_df = client.query(query_contracts_with_calculations).to_dataframe()
-            logger.info(f"Loaded {len(contracts_df)} contracts with calculation data")
+    # Final snapshot dictionary
+    snapshot = {
+        'snapshot_date': SNAPSHOT_DATE,
+        'total_active_subscriptions': total_active_subscriptions,
+        'approved_not_started': approved_not_started_count,
+        'offboarding_contracts': offboarding_count,
+        'total_contracts': total_contracts,
+        'revenue_generating_contracts': revenue_contracts_count,
+        'new_subscriptions': new_subscriptions,
+        'churned_subscriptions': churned_subscriptions,
+        'retention_rate': retention_rate,
+        'churn_rate': churn_rate,
+        'eor_fees_mrr': eor_fees_mrr,
+        'device_fees_mrr': device_fees_mrr,
+        'hardware_fees_mrr': hardware_fees_mrr,
+        'software_fees_mrr': software_fees_mrr,
+        'health_insurance_mrr': health_fees_mrr,
+        'one_time_fees': one_time_fees,
+        'placement_fees': placement_fees,
+        'finalisation_fees': finalisation_fees,
+        'total_mrr': total_mrr,
+        'total_monthly_revenue': total_monthly_revenue,
+        'total_arr': total_arr,
+        'avg_subscription_value': avg_subscription_value,
+        'recurring_revenue_percentage': total_mrr / total_monthly_revenue * 100 if total_monthly_revenue > 0 else 0,
+        'one_time_revenue_percentage': 100 - (total_mrr / total_monthly_revenue * 100) if total_monthly_revenue > 0 else 0,
+        'total_customers': total_customers,
+        'new_customers_this_month': new_customers_this_month,
+        'addon_revenue_percentage': addon_revenue_percentage,
+        'avg_days_from_approval_to_start': avg_days_from_approval_to_start,
+        'avg_days_until_start': avg_days_until_start,
+        'plan_change_rate': plan_change_rate,
+        'laptops_count': laptops_count,
+    }
 
-            # Log a sample of fee values to verify extraction
-            sample_contracts = contracts_df.head(5)
-            for idx, row in sample_contracts.iterrows():
-                logger.info(f"Contract {row['contract_id']} fees: EOR=${row['eor_fees']:.2f}, Device=${row['device_fees']:.2f}, Hardware=${row['hardware_fees']:.2f}, Health=${row['health_fees']:.2f}")
+    # Convert to DataFrame
+    metrics_df = pd.DataFrame([snapshot])
 
-            # Log hardware summary statistics to debug
-            hardware_stats = {
-                'contracts_with_nonzero_hardware': len(contracts_df[contracts_df['hardware_fees'] > 0]),
-                'total_hardware_fees': contracts_df['hardware_fees'].sum(),
-                'avg_hardware_fees': contracts_df[contracts_df['hardware_fees'] > 0]['hardware_fees'].mean() if len(contracts_df[contracts_df['hardware_fees'] > 0]) > 0 else 0
-            }
-            logger.info(f"Hardware stats: {hardware_stats}")
+    # Define schema
+    schema = [
+        bigquery.SchemaField("snapshot_date", "DATE"),
+        bigquery.SchemaField("total_active_subscriptions", "INTEGER"),
+        bigquery.SchemaField("approved_not_started", "INTEGER"),
+        bigquery.SchemaField("offboarding_contracts", "INTEGER"),
+        bigquery.SchemaField("total_contracts", "INTEGER"),
+        bigquery.SchemaField("revenue_generating_contracts", "INTEGER"),
+        bigquery.SchemaField("new_subscriptions", "INTEGER"),
+        bigquery.SchemaField("churned_subscriptions", "INTEGER"),
+        bigquery.SchemaField("retention_rate", "FLOAT"),
+        bigquery.SchemaField("churn_rate", "FLOAT"),
+        bigquery.SchemaField("eor_fees_mrr", "FLOAT64"),
+        bigquery.SchemaField("device_fees_mrr", "FLOAT64"),
+        bigquery.SchemaField("hardware_fees_mrr", "FLOAT64"),
+        bigquery.SchemaField("software_fees_mrr", "FLOAT64"),
+        bigquery.SchemaField("health_insurance_mrr", "FLOAT64"),
+        bigquery.SchemaField("one_time_fees", "FLOAT64"),
+        bigquery.SchemaField("placement_fees", "FLOAT64"),
+        bigquery.SchemaField("finalisation_fees", "FLOAT64"),
+        bigquery.SchemaField("total_mrr", "FLOAT64"),
+        bigquery.SchemaField("total_monthly_revenue", "FLOAT64"),
+        bigquery.SchemaField("total_arr", "FLOAT64"),
+        bigquery.SchemaField("avg_subscription_value", "FLOAT64"),
+        bigquery.SchemaField("recurring_revenue_percentage", "FLOAT"),
+        bigquery.SchemaField("one_time_revenue_percentage", "FLOAT"),
+        bigquery.SchemaField("total_customers", "INTEGER"),
+        bigquery.SchemaField("new_customers_this_month", "INTEGER"),
+        bigquery.SchemaField("addon_revenue_percentage", "FLOAT"),
+        bigquery.SchemaField("avg_days_from_approval_to_start", "FLOAT"),
+        bigquery.SchemaField("avg_days_until_start", "FLOAT"),
+        bigquery.SchemaField("plan_change_rate", "FLOAT"),
+        bigquery.SchemaField("laptops_count", "INTEGER"),
+    ]
 
-        except Exception as e:
-            logger.error(f"Error loading contract data: {str(e)}")
-            raise
+    # Reorder DataFrame to match schema
+    metrics_df = metrics_df[[field.name for field in schema]]
 
-        # 4. Join with companies data
-        contracts_df = contracts_df.merge(
-            companies_df[['id', 'companyName', 'createdAt']],
-            left_on='companyId',
-            right_on='id',
-            how='left',
-            suffixes=('', '_company')
-        )
+    # Write to BigQuery
+    success = write_snapshot_to_bigquery(metrics_df, table_id, schema, dry_run=args.dry_run)
+    if not success:
+        logger.error("Failed to write revenue metrics to BigQuery")
+        sys.exit(1)
 
-        # Convert dates
-        contracts_df['createdAt'] = pd.to_datetime(contracts_df['createdAt'])
-        contracts_df['updatedAt'] = pd.to_datetime(contracts_df['updatedAt'])
-        contracts_df['start_date'] = pd.to_datetime(contracts_df['start_date'])
-        contracts_df['createdAt_company'] = pd.to_datetime(contracts_df['createdAt_company'])
+    # Save locally
+    metrics_df.to_csv(f"subscription_snapshot_{SNAPSHOT_DATE}.csv", index=False)
+    logger.info(f"Results saved to subscription_snapshot_{SNAPSHOT_DATE}.csv")
 
-        # Convert timezone-aware datetime columns to timezone-naive right after loading dates
-        # This ensures all datetime operations will be consistent
-        for date_col in ['start_date', 'createdAt', 'updatedAt', 'createdAt_company']:
-            if date_col in contracts_df.columns:
-                contracts_df[date_col] = contracts_df[date_col].dt.tz_localize(None)
-
-        # Create a month string for joining with FX rates
-        contracts_df['start_month'] = contracts_df['start_date'].dt.strftime('%Y-%m-01')
-
-        # 5. Apply FX conversions
-        fx_rates_df['fx_date'] = pd.to_datetime(fx_rates_df['fx_date'])
-        fx_rates_df['month_key'] = fx_rates_df['fx_date'].dt.strftime('%Y-%m-01')
-
-        # Join on month and country
-        contracts_df = contracts_df.merge(
-            fx_rates_df[['month_key', 'currency', 'rate']],
-            left_on=['start_month', 'country'],
-            right_on=['month_key', 'currency'],
-            how='left'
-        )
-
-        # Default rate to 1 for missing values
-        contracts_df['rate'] = contracts_df['rate'].fillna(1).astype(float)
-
-        # Apply FX conversion
-        for fee_type in ['eor_fees', 'device_fees', 'hardware_fees', 'software_fees', 'health_fees', 'placement_fees']:
-            contracts_df[f'{fee_type}_aud'] = contracts_df[fee_type] * contracts_df['rate']
-
-        # 6. Calculate monthly metrics
-        logger.info("Calculating metrics...")
-
-        # Filter active contracts and categorize as 'active', 'offboarding', or 'approved_not_started'
-        active_df = contracts_df[contracts_df['mapped_status'] == 'Active'].copy()
-
-        # Add contract status categorization
-        active_df['contract_category'] = 'active'
-
-        # Identify contracts in offboarding
-        mask_offboarding = (active_df['status'] == 'OFFBOARDING')
-        active_df.loc[mask_offboarding, 'contract_category'] = 'offboarding'
-
-        # Identify future start dates (not started yet)
-        mask_future_start = (active_df['start_date'].dt.date > snapshot_date)
-        active_df.loc[mask_future_start, 'contract_category'] = 'approved_not_started'
-
-        # Current active contracts (already started, not offboarding)
-        current_active_df = active_df[active_df['contract_category'].isin(['active', 'offboarding'])]
-
-        # Approved but not yet started
-        approved_not_started_df = active_df[active_df['contract_category'] == 'approved_not_started']
-
-        # In offboarding process
-        offboarding_df = active_df[active_df['contract_category'] == 'offboarding']
-
-        # Revenue-generating contracts (active + offboarding, but not approved_not_started)
-        revenue_generating_df = active_df[active_df['contract_category'].isin(['active', 'offboarding'])]
-
-        # Calculate days from approval to start for all contracts
-        active_df['days_from_approval_to_start'] = (active_df['start_date'] - active_df['createdAt']).dt.days
-
-        # For approved_not_started, calculate days until start
-        if len(approved_not_started_df) > 0:
-            # Create a new column without triggering the warning
-            days_until = [(d - pd.Timestamp(snapshot_date).tz_localize(None)).days for d in approved_not_started_df['start_date']]
-            approved_not_started_df = approved_not_started_df.assign(days_until_start=days_until)
-
-        # Contracts created/churned in the snapshot month
-        # Ensure snapshot dates are timezone-naive for consistent comparison
-        snapshot_month_start = pd.Timestamp(snapshot_date.replace(day=1)).tz_localize(None)
-        next_month = (snapshot_month_start + pd.DateOffset(months=1))
-
-        new_df = contracts_df[
-            (contracts_df['mapped_status'] == 'Active') &
-            (contracts_df['start_date'] >= snapshot_month_start) &
-            (contracts_df['start_date'] < next_month)
-            ]
-
-        churned_df = contracts_df[
-            (contracts_df['mapped_status'] == 'Inactive') &
-            (contracts_df['updatedAt'] >= snapshot_month_start) &
-            (contracts_df['updatedAt'] < next_month)
-            ]
-
-        # Calculate metrics
-        metrics = {
-            'snapshot_date': snapshot_date,
-            'total_active_subscriptions': len(current_active_df),
-            'approved_not_started': len(approved_not_started_df),
-            'offboarding_contracts': len(offboarding_df),
-            'total_contracts': len(active_df),  # Active, approved_not_started, and offboarding
-            'revenue_generating_contracts': len(revenue_generating_df),  # Active + offboarding
-            'new_subscriptions': len(new_df),
-            'churned_subscriptions': len(churned_df),
-            'retention_rate': (1 - len(churned_df) / len(revenue_generating_df)) * 100 if len(revenue_generating_df) > 0 else None,
-            'churn_rate': (len(churned_df) / len(revenue_generating_df)) * 100 if len(revenue_generating_df) > 0 else None,
-            # Use revenue_generating_df (active + offboarding) for all revenue calculations
-            'eor_fees_mrr': revenue_generating_df['eor_fees_aud'].sum(),
-            'device_fees_mrr': revenue_generating_df['device_fees_aud'].sum(),
-            'hardware_fees_mrr': revenue_generating_df['hardware_fees_aud'].sum(),
-            'software_fees_mrr': revenue_generating_df['software_fees_aud'].sum(),
-            'health_insurance_mrr': revenue_generating_df['health_fees_aud'].sum(),
-            'placement_fees_monthly': new_df['placement_fees_aud'].sum(),  # Renamed to clarify it's monthly
-            'total_customers': int(revenue_generating_df['companyId'].nunique()),
-            'new_customers_this_month': active_df[
-                (active_df['createdAt_company'] >= snapshot_month_start) &
-                (active_df['createdAt_company'] < next_month)
-                ]['companyId'].nunique(),
-            'avg_days_from_approval_to_start': active_df['days_from_approval_to_start'].mean(),
-            'avg_days_until_start': approved_not_started_df['days_until_start'].mean() if len(approved_not_started_df) > 0 else 0,
-            'plan_change_rate': 0.0,  # Would need historical data to calculate
-        }
-
-        logger.info(f"total_customers set to: {metrics['total_customers']}")
-
-        # Add derived metrics - Separating recurring revenue from one-time revenue
-        metrics['total_mrr'] = (
-                metrics['eor_fees_mrr'] +
-                metrics['device_fees_mrr'] +
-                metrics['hardware_fees_mrr'] +
-                metrics['software_fees_mrr'] +
-                metrics['health_insurance_mrr']
-        )
-
-        # Calculate total revenue (MRR + one-time fees)
-        metrics['total_monthly_revenue'] = metrics['total_mrr'] + metrics['placement_fees_monthly']
-
-        # Calculate ARR based on MRR only (not including one-time fees)
-        metrics['total_arr'] = metrics['total_mrr'] * 12
-
-        # Average subscription value based on MRR
-        metrics['avg_subscription_value'] = (
-            metrics['total_mrr'] / metrics['revenue_generating_contracts']
-            if metrics['revenue_generating_contracts'] > 0 else 0
-        )
-
-        # Calculate revenue component percentages based on total monthly revenue
-        if metrics['total_monthly_revenue'] > 0:
-            metrics['recurring_revenue_percentage'] = (metrics['total_mrr'] / metrics['total_monthly_revenue']) * 100
-            metrics['one_time_revenue_percentage'] = (metrics['placement_fees_monthly'] / metrics['total_monthly_revenue']) * 100
-        else:
-            metrics['recurring_revenue_percentage'] = 0
-            metrics['one_time_revenue_percentage'] = 0
-
-        # Calculate add-on revenue percentage (as % of MRR, not total revenue)
-        addon_revenue = (
-                metrics['device_fees_mrr'] +
-                metrics['hardware_fees_mrr'] +
-                metrics['software_fees_mrr'] +
-                metrics['health_insurance_mrr']
-        )
-
-        metrics['addon_revenue_percentage'] = (
-            addon_revenue / metrics['total_mrr'] * 100
-            if metrics['total_mrr'] > 0 else 0
-        )
-
-        # 7. Calculate add-on counts - use revenue_generating_df for all add-on counts
-        # Count laptops as contracts with device fees
-        metrics['laptops_count'] = len(revenue_generating_df[revenue_generating_df['device_fees'] > 0])
-
-        # Remove monitors and docks counts as requested
-
-        metrics['contracts_with_dependents'] = len(revenue_generating_df[revenue_generating_df['dependent_count'] > 0])
-        metrics['avg_dependents_per_contract'] = (
-            revenue_generating_df[revenue_generating_df['dependent_count'] > 0]['dependent_count'].mean()
-            if len(revenue_generating_df[revenue_generating_df['dependent_count'] > 0]) > 0 else 0
-        )
-
-        # 8. Convert to DataFrame for writing to BigQuery
-        metrics_df = pd.DataFrame([metrics])
-        #metrics_df = metrics_df[[field.name for field in schema]]  # Add this line
-
-        # 9. Local visualization and validation
-        logger.info("Results:")
-        for key, value in metrics.items():
-            if isinstance(value, (int, float)):
-                if key == 'revenue_generating_contracts' or key.endswith('_count') or key.startswith('total_') and 'revenue' not in key and 'mrr' not in key and 'arr' not in key:
-                    # Show as counts
-                    logger.info(f"  {key}: {value:,}")
-                elif any(term in key for term in ['mrr', 'arr', 'revenue', 'subscription_value']):
-                    # Show as dollar amounts
-                    logger.info(f"  {key}: ${value:,.2f}")
-                elif 'percentage' in key or 'rate' in key:
-                    # Show as percentages
-                    logger.info(f"  {key}: {value:.2f}%")
-                else:
-                    # Default formatting for other numbers
-                    logger.info(f"  {key}: {value:,}")
-            else:
-                # Non-numeric values
-                logger.info(f"  {key}: {value}")
-
-        # 10. Define schema for BigQuery
-        schema = [
-            bigquery.SchemaField("snapshot_date", "DATE"),
-            bigquery.SchemaField("total_active_subscriptions", "INTEGER"),
-            bigquery.SchemaField("approved_not_started", "INTEGER"),
-            bigquery.SchemaField("offboarding_contracts", "INTEGER"),
-            bigquery.SchemaField("total_contracts", "INTEGER"),
-            bigquery.SchemaField("revenue_generating_contracts", "INTEGER"),
-            bigquery.SchemaField("new_subscriptions", "INTEGER"),
-            bigquery.SchemaField("churned_subscriptions", "INTEGER"),
-            bigquery.SchemaField("retention_rate", "FLOAT"),
-            bigquery.SchemaField("churn_rate", "FLOAT"),
-            bigquery.SchemaField("eor_fees_mrr", "FLOAT64"),
-            bigquery.SchemaField("device_fees_mrr", "FLOAT64"),
-            bigquery.SchemaField("hardware_fees_mrr", "FLOAT64"),
-            bigquery.SchemaField("software_fees_mrr", "FLOAT64"),
-            bigquery.SchemaField("health_insurance_mrr", "FLOAT64"),
-            bigquery.SchemaField("placement_fees_monthly", "FLOAT64"),
-            bigquery.SchemaField("total_mrr", "FLOAT64"),
-            bigquery.SchemaField("total_monthly_revenue", "FLOAT64"),
-            bigquery.SchemaField("total_arr", "FLOAT64"),
-            bigquery.SchemaField("avg_subscription_value", "FLOAT64"),
-            bigquery.SchemaField("recurring_revenue_percentage", "FLOAT"),
-            bigquery.SchemaField("one_time_revenue_percentage", "FLOAT"),
-            bigquery.SchemaField("total_customers", "INTEGER"),
-            bigquery.SchemaField("new_customers_this_month", "INTEGER"),
-            bigquery.SchemaField("addon_revenue_percentage", "FLOAT"),
-            bigquery.SchemaField("avg_days_from_approval_to_start", "FLOAT"),
-            bigquery.SchemaField("avg_days_until_start", "FLOAT"),
-            bigquery.SchemaField("plan_change_rate", "FLOAT"),
-            bigquery.SchemaField("laptops_count", "INTEGER"),
-            bigquery.SchemaField("contracts_with_dependents", "INTEGER"),
-            bigquery.SchemaField("avg_dependents_per_contract", "FLOAT"),
-        ]
-
-        # Reorder to be like the schema
-        metrics_df = metrics_df[[field.name for field in schema]]  # Reordering line
-
-        # 11. Write to BigQuery using our utility
-        success = write_snapshot_to_bigquery(
-            metrics_df=metrics_df,
-            table_id=table_id,
-            schema=schema,
-            dry_run=args.dry_run
-        )
-
-        if not success:
-            logger.error("Failed to write revenue metrics to BigQuery")
-            sys.exit(1)
-
-        # 12. Save results locally (optional, for further inspection)
-        metrics_df.to_csv(f"subscription_snapshot_{snapshot_date}.csv", index=False)
-        logger.info(f"Results saved to subscription_snapshot_{snapshot_date}.csv")
-
-        return metrics_df
-
-    except Exception as e:
-        logger.error(f"Error in main process: {str(e)}", exc_info=True)
-        raise
+    return metrics_df
 
 if __name__ == "__main__":
     main()

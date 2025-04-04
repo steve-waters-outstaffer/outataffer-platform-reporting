@@ -29,7 +29,7 @@ def get_all_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
         ec.employmentLocation.country AS country,
         ec.createdAt,
         ec.updatedAt,
-        ec.role.preferredStartDate
+        ec.role.preferredStartDate AS start_date
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
       ON ec.status = sm.contract_status
@@ -69,7 +69,7 @@ def get_active_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
         ec.employmentLocation.country AS country,
         ec.createdAt,
         ec.updatedAt,
-        ec.role.preferredStartDate
+        ec.role.preferredStartDate AS start_date
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
       ON ec.status = sm.contract_status
@@ -111,7 +111,7 @@ def get_offboarding_contracts(snapshot_date: datetime.date = None) -> pd.DataFra
         ec.employmentLocation.country AS country,
         ec.createdAt,
         ec.updatedAt,
-        ec.role.preferredStartDate
+        ec.role.preferredStartDate AS start_date
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
       ON ec.status = sm.contract_status
@@ -154,7 +154,7 @@ def get_inactive_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
         ec.employmentLocation.country AS country,
         ec.createdAt,
         ec.updatedAt,
-        ec.role.preferredStartDate
+        ec.role.preferredStartDate AS start_date
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
       ON ec.status = sm.contract_status
@@ -195,7 +195,7 @@ def get_approved_not_started_contracts(snapshot_date: datetime.date = None) -> p
         ec.employmentLocation.country AS country,
         ec.createdAt,
         ec.updatedAt,
-        ec.role.preferredStartDate
+        ec.role.preferredStartDate AS start_date
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     LEFT JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm
       ON ec.status = sm.contract_status
