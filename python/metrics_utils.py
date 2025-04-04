@@ -549,6 +549,7 @@ def get_individual_revenue_metrics(contracts_df: pd.DataFrame, snapshot_date: da
     Returns:
         pd.DataFrame: Contracts with calculated revenue metrics
     """
+
     if snapshot_date is None:
         snapshot_date = datetime.now().date()
 
@@ -560,6 +561,10 @@ def get_individual_revenue_metrics(contracts_df: pd.DataFrame, snapshot_date: da
 
     # Merge fees into contracts dataframe
     df = contracts_df.merge(fees_df, on='contract_id', how='left')
+
+    # Ensure createdAt is datetime
+    if 'createdAt' in df.columns:
+        df['createdAt'] = pd.to_datetime(df['createdAt'], errors='coerce')
 
     # Fill NA values with 0 for fee columns
     fee_types = ['eor_fees', 'device_fees', 'hardware_fees', 'software_fees',
@@ -575,44 +580,36 @@ def get_individual_revenue_metrics(contracts_df: pd.DataFrame, snapshot_date: da
     # Define recurring fee types for MRR calculation
     recurring_fees = ['eor_fees_aud', 'device_fees_aud', 'hardware_fees_aud',
                       'software_fees_aud', 'health_fees_aud']
-    # Calculate total monthly recurring revenue (MRR) per contract
     df['total_mrr_aud'] = df[recurring_fees].sum(axis=1)
 
-    # Define addon fee types (subset of recurring fees)
+    # Define addon fee types
     addon_fees = ['device_fees_aud', 'hardware_fees_aud', 'software_fees_aud',
                   'health_fees_aud']
-    # Calculate addon MRR per contract
     df['addon_mrr_aud'] = df[addon_fees].sum(axis=1)
 
-    # Calculate annual recurring revenue (ARR) by multiplying MRR by 12
+    # Calculate ARR
     df['total_arr_aud'] = df['total_mrr_aud'] * 12
-    # Calculate addon ARR per contract
     df['addon_arr_aud'] = df['addon_mrr_aud'] * 12
 
-    # Calculate percentage of MRR from addons, filling NaN with 0 (e.g., when total_mrr_aud is 0)
+    # Calculate addon percentage
     df['addon_percentage'] = (df['addon_mrr_aud'] / df['total_mrr_aud'] * 100).fillna(0)
 
     # Filter one-time fees by date
     month_start = snapshot_date.replace(day=1)
     month_end = (pd.Timestamp(month_start) + pd.DateOffset(months=1) - pd.DateOffset(days=1)).date()
 
-    # Initialize one-time fee columns with 0
     df['placement_fees_in_month'] = 0.0
     df['finalisation_fees_in_month'] = 0.0
 
-    # Only count one-time fees if they were created in this month
-    if 'createdAt' in df.columns:
+    # Only count one-time fees if createdAt is valid and within the month
+    if 'createdAt' in df.columns and df['createdAt'].notna().any():
         month_mask = (df['createdAt'].dt.date >= month_start) & (df['createdAt'].dt.date <= month_end)
         df.loc[month_mask, 'placement_fees_in_month'] = df.loc[month_mask, 'placement_fees_aud']
         df.loc[month_mask, 'finalisation_fees_in_month'] = df.loc[month_mask, 'finalisation_fees_aud']
 
-    # Calculate total one-time fees as sum of placement and finalisation fees
     df['one_time_fees_in_month'] = df['placement_fees_in_month'] + df['finalisation_fees_in_month']
-
-    # Calculate total monthly revenue by adding one-time fees to MRR
     df['total_monthly_revenue_aud'] = df['total_mrr_aud'] + df['one_time_fees_in_month']
 
-    # Log the number of contracts processed
     logger.info(f"Calculated individual revenue metrics for {len(df)} contracts")
     return df
 

@@ -158,93 +158,75 @@ const CustomerDashboard = () => {
         };
     };
 
-    // Customer concentration chart options
     const getCustomerConcentrationOptions = () => {
         if (!topCustomers || topCustomers.length === 0) return {};
 
-        const data = topCustomers.map(customer => ({
-            name: customer.label,
-            value: customer.value_aud
-        }));
-
-        // Sort data by value in descending order for better visualization
-        data.sort((a, b) => b.value - a.value);
+        const data = topCustomers
+            .map(c => ({
+                name: c.label,
+                value: c.value_aud,
+                percentage: c.percentage
+            }))
+            .sort((a, b) => b.value - a.value);
 
         return {
             title: {
-                text: 'Top 10 Customers by ARR',
+                text: 'Top 10 ARR',
                 left: 'center',
                 textStyle: {
                     color: CustomColors.UIGrey800
                 }
             },
             tooltip: {
-                trigger: 'item',
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
                 formatter: (params) => {
-                    const customer = topCustomers.find(c => c.label === params.name);
-                    return `${params.name}<br/>ARR: ${formatCurrency(params.value)}<br/>Share: ${formatPercentage(customer?.percentage)}`;
+                    const { name, value, data } = params[0];
+                    return `${name}<br/>ARR: ${formatCurrency(value)}<br/>Share: ${formatPercentage(data.percentage)}`;
                 }
             },
-            legend: {
-                type: 'scroll',
-                orient: 'vertical',
-                right: 10,
-                top: 20,
-                bottom: 20,
-                data: data.map(item => item.name)
+            grid: {
+                left: '25%',
+                right: '5%',
+                bottom: '5%',
+                top: '15%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'value',
+                axisLabel: {
+                    formatter: value => `$${(value / 1000).toFixed(0)}k`,
+                    color: CustomColors.UIGrey700
+                }
+            },
+            yAxis: {
+                type: 'category',
+                data: data.map(d => d.name),
+                axisLabel: {
+                    color: CustomColors.UIGrey800,
+                    fontSize: 12
+                }
             },
             series: [
                 {
                     name: 'ARR',
-                    type: 'pie',
-                    radius: ['40%', '70%'],
-                    center: ['40%', '50%'],
-                    avoidLabelOverlap: true,
+                    type: 'bar',
+                    data: data.map(d => ({
+                        value: d.value,
+                        percentage: d.percentage
+                    })),
                     itemStyle: {
-                        borderRadius: 10,
-                        borderColor: '#fff',
-                        borderWidth: 2
+                        color: CustomColors.DeepSkyBlue
                     },
                     label: {
-                        show: false,
-                        position: 'center'
-                    },
-                    emphasis: {
-                        label: {
-                            show: true,
-                            fontSize: '16',
-                            fontWeight: 'bold'
-                        }
-                    },
-                    labelLine: {
-                        show: false
-                    },
-                    data: data
+                        show: true,
+                        position: 'left',
+                        formatter: params => formatCurrency(params.value)
+                    }
                 }
             ]
         };
     };
-
-    if (loading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                <CircularProgress color="secondary" />
-            </Box>
-        );
-    }
-
-    if (error) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', flexDirection: 'column', p: 3 }}>
-                <Alert severity="error" sx={{ mb: 2, width: '100%', maxWidth: 600 }}>
-                    {error}
-                </Alert>
-                <Typography variant="body">
-                    Please check your network connection and API configuration.
-                </Typography>
-            </Box>
-        );
-    }
 
     // Get specific metrics
     const totalCustomers = findMetric('total_customers');
@@ -401,8 +383,8 @@ const CustomerDashboard = () => {
                     {[
                         { metricType: 'active_contracts', label: 'Active Contracts' },
                         { metricType: 'new_customers', label: 'New Customers This Month' },
-                        { metricType: 'churned_customers', label: 'Churned Customers This Month' },
-                        { metricType: 'avg_contracts_per_customer', label: 'Avg Contracts Per Customer' }
+                        { metricType: 'avg_users_per_customer', label: 'Avg Users Per Company' },
+                        { metricType: 'avg_active_subscriptions_per_customer', label: 'Avg Contracts Per Customer' }
                     ].map((metric) => {
                         const data = findMetric(metric.metricType);
                         return (

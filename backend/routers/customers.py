@@ -88,20 +88,39 @@ async def customer_trend(months: int = 6, api_key: str = Depends(verify_api_key)
     Returns month and active_customers count for charting.
     """
     try:
-        query = f"""
+        query = """
+            WITH RankedSnapshots AS (
+                SELECT 
+                    snapshot_date,
+                    count as value,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY EXTRACT(YEAR FROM snapshot_date), EXTRACT(MONTH FROM snapshot_date) 
+                        ORDER BY snapshot_date DESC
+                    ) as rn
+                FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+                WHERE 
+                    snapshot_date >= DATE_SUB(
+                        (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`),
+                        INTERVAL @months MONTH
+                    )
+                    AND metric_type = 'active_customers'
+            )
+            
             SELECT 
                 snapshot_date,
-                count as value
-            FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
-            WHERE 
-                snapshot_date >= DATE_SUB(
-                    (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`),
-                    INTERVAL {months} MONTH
-                )
-                AND metric_type = 'active_customers'
+                value 
+            FROM RankedSnapshots
+            WHERE rn = 1
             ORDER BY snapshot_date
         """
-        query_job = client.query(query)
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("months", "INT64", months)
+            ]
+        )
+
+        query_job = client.query(query, job_config=job_config)
         results = query_job.result()
 
         trend_data = []

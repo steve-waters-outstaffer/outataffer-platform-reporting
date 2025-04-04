@@ -50,21 +50,40 @@ async def revenue_latest(api_key: str = Depends(verify_api_key)):
 async def revenue_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
     """
     Get MRR trend data for the last X months (default 6).
-    Returns month and total_mrr for charting.
+    Returns month and total_mrr for charting, using only the latest snapshot per month.
     """
     try:
-        query = f"""
+        query = """
+            WITH RankedSnapshots AS (
+                SELECT 
+                    snapshot_date,
+                    total_mrr,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY EXTRACT(YEAR FROM snapshot_date), EXTRACT(MONTH FROM snapshot_date) 
+                        ORDER BY snapshot_date DESC
+                    ) as rn
+                FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
+                WHERE snapshot_date >= DATE_SUB(
+                    (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`),
+                    INTERVAL @months MONTH
+                )
+            )
+            
             SELECT 
                 snapshot_date,
                 total_mrr
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
-            WHERE snapshot_date >= DATE_SUB(
-                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`),
-                INTERVAL {months} MONTH
-            )
+            FROM RankedSnapshots
+            WHERE rn = 1
             ORDER BY snapshot_date
         """
-        query_job = client.query(query)
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("months", "INT64", months)
+            ]
+        )
+
+        query_job = client.query(query, job_config=job_config)
         results = query_job.result()
 
         trend_data = []
@@ -81,26 +100,44 @@ async def revenue_trend(months: int = 6, api_key: str = Depends(verify_api_key))
         logger.error(f"Error fetching revenue trend: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-
 @router.get("/subscription-trend")
 async def subscription_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
     """
     Get subscription count trend for the last X months (default 6).
-    Returns month and total_active_subscriptions for charting.
+    Returns month and total_active_subscriptions for charting, using only the latest snapshot per month.
     """
     try:
-        query = f"""
+        query = """
+            WITH RankedSnapshots AS (
+                SELECT 
+                    snapshot_date,
+                    total_active_subscriptions,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY EXTRACT(YEAR FROM snapshot_date), EXTRACT(MONTH FROM snapshot_date) 
+                        ORDER BY snapshot_date DESC
+                    ) as rn
+                FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
+                WHERE snapshot_date >= DATE_SUB(
+                    (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`),
+                    INTERVAL @months MONTH
+                )
+            )
+            
             SELECT 
                 snapshot_date,
                 total_active_subscriptions
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`
-            WHERE snapshot_date >= DATE_SUB(
-                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_snapshot`),
-                INTERVAL {months} MONTH
-            )
+            FROM RankedSnapshots
+            WHERE rn = 1
             ORDER BY snapshot_date
         """
-        query_job = client.query(query)
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("months", "INT64", months)
+            ]
+        )
+
+        query_job = client.query(query, job_config=job_config)
         results = query_job.result()
 
         trend_data = []

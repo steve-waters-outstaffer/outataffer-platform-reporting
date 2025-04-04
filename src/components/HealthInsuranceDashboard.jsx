@@ -232,6 +232,8 @@ const HealthInsuranceDashboard = () => {
     // Get bar chart options for a specific country
     const getCountryBarChartOptions = (country) => {
         const plans = processedData.plansByCountry[country] || [];
+
+        // Sort plans by count in descending order
         const sortedPlans = [...plans].sort((a, b) => b.count - a.count);
 
         return {
@@ -273,7 +275,8 @@ const HealthInsuranceDashboard = () => {
                 axisLabel: {
                     color: CustomColors.UIGrey700,
                     fontSize: 11
-                }
+                },
+                inverse:true
             },
             series: [
                 {
@@ -298,7 +301,14 @@ const HealthInsuranceDashboard = () => {
     // Get combined countries bar chart
     const getCountriesComparisonChartOptions = () => {
         const summaryData = processedData.countrySummary || {};
-        const countries = Object.keys(summaryData).sort();
+
+        // Get countries and sort them by insurance coverage count (descending)
+        const countries = Object.keys(summaryData)
+            .sort((a, b) => {
+                const aValue = summaryData[a]?.totalWithInsurance || 0;
+                const bValue = summaryData[b]?.totalWithInsurance || 0;
+                return bValue - aValue; // Sort largest to smallest
+            });
 
         return {
             title: {
@@ -334,10 +344,11 @@ const HealthInsuranceDashboard = () => {
             },
             yAxis: {
                 type: 'category', // Swapped to category for horizontal bars
-                data: countries,
+                data: countries, // Now using sorted countries array
                 axisLabel: {
                     color: CustomColors.UIGrey700
-                }
+                },
+                inverse: true
             },
             series: [
                 {
