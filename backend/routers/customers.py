@@ -136,3 +136,122 @@ async def customer_trend(months: int = 6, api_key: str = Depends(verify_api_key)
     except Exception as e:
         logger.error(f"Error fetching customer trend: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+# Add these new functions to your existing backend/routers/customers.py file
+
+@router.get("/company-sizes")
+async def company_sizes(api_key: str = Depends(verify_api_key)):
+    """
+    Get company size distribution metrics.
+    Returns size distribution data from the most recent snapshot.
+    """
+    try:
+        query = """
+            SELECT * 
+            FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+            WHERE 
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+                )
+                AND metric_type IN (
+                    'company_size_distribution', 
+                    'company_size_arr', 
+                    'company_size_avg_arr'
+                )
+            ORDER BY rank ASC
+        """
+        query_job = client.query(query)
+        results = query_job.result()
+
+        # Convert to list of dicts
+        result_list = []
+        for row in results:
+            row_dict = dict(row)
+            # Convert date objects to ISO format
+            for key, value in row_dict.items():
+                if isinstance(value, datetime):
+                    row_dict[key] = value.isoformat()
+            result_list.append(row_dict)
+
+        return result_list
+
+    except Exception as e:
+        logger.error(f"Error fetching company size metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/industries-by-count")
+async def industries_by_count(limit: int = 10, api_key: str = Depends(verify_api_key)):
+    """
+    Get top industries by customer count.
+    Returns industries ranked by number of customers from the most recent snapshot.
+    """
+    try:
+        query = f"""
+            SELECT * 
+            FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+            WHERE 
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+                )
+                AND metric_type = 'top_industry_by_count'
+            ORDER BY rank ASC
+            LIMIT {limit}
+        """
+        query_job = client.query(query)
+        results = query_job.result()
+
+        # Convert to list of dicts
+        result_list = []
+        for row in results:
+            row_dict = dict(row)
+            # Convert date objects to ISO format
+            for key, value in row_dict.items():
+                if isinstance(value, datetime):
+                    row_dict[key] = value.isoformat()
+            result_list.append(row_dict)
+
+        return result_list
+
+    except Exception as e:
+        logger.error(f"Error fetching industries by count: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@router.get("/industries-by-arr")
+async def industries_by_arr(limit: int = 10, api_key: str = Depends(verify_api_key)):
+    """
+    Get top industries by ARR.
+    Returns industries ranked by annual recurring revenue from the most recent snapshot.
+    """
+    try:
+        query = f"""
+            SELECT * 
+            FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+            WHERE 
+                snapshot_date = (
+                    SELECT MAX(snapshot_date) 
+                    FROM `outstaffer-app-prod.dashboard_metrics.customer_snapshot`
+                )
+                AND metric_type = 'top_industry_by_arr'
+            ORDER BY rank ASC
+            LIMIT {limit}
+        """
+        query_job = client.query(query)
+        results = query_job.result()
+
+        # Convert to list of dicts
+        result_list = []
+        for row in results:
+            row_dict = dict(row)
+            # Convert date objects to ISO format
+            for key, value in row_dict.items():
+                if isinstance(value, datetime):
+                    row_dict[key] = value.isoformat()
+            result_list.append(row_dict)
+
+        return result_list
+
+    except Exception as e:
+        logger.error(f"Error fetching industries by ARR: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

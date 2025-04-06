@@ -24,6 +24,7 @@ import { CustomColors } from '../theme';
 import { fetchLatestCustomerMetrics, fetchTopCustomers, fetchCustomerTrend } from '../services/ApiService';
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CompanyAndIndustryMetrics from './CompanyAndIndustryMetrics';
 
 const CustomerDashboard = () => {
     const navigate = useNavigate();
@@ -158,15 +159,24 @@ const CustomerDashboard = () => {
         };
     };
 
+    // Find the code that generates the customer chart options, likely in CustomerDashboard.jsx
+// Modify the getCustomerConcentrationOptions function (or similar function name)
+
     const getCustomerConcentrationOptions = () => {
         if (!topCustomers || topCustomers.length === 0) return {};
 
+        // Extract just the company name from the label
         const data = topCustomers
-            .map(c => ({
-                name: c.label,
-                value: c.value_aud,
-                percentage: c.percentage
-            }))
+            .map(c => {
+                // Extract just the company name (before the first parenthesis)
+                const companyName = c.label.split('(')[0].trim();
+
+                return {
+                    name: companyName,
+                    value: c.value_aud,
+                    percentage: c.percentage
+                };
+            })
             .sort((a, b) => b.value - a.value);
 
         return {
@@ -186,7 +196,7 @@ const CustomerDashboard = () => {
                 }
             },
             grid: {
-                left: '25%',
+                left: '3%',  // Reduced from 25% to give more space for bars
                 right: '5%',
                 bottom: '5%',
                 top: '15%',
@@ -202,9 +212,12 @@ const CustomerDashboard = () => {
             yAxis: {
                 type: 'category',
                 data: data.map(d => d.name),
+                inverse: true,
                 axisLabel: {
                     color: CustomColors.UIGrey800,
-                    fontSize: 12
+                    fontSize: 12,
+                    width: 100,         // Limit width
+                    overflow: 'truncate' // Truncate text if too long
                 }
             },
             series: [
@@ -220,7 +233,7 @@ const CustomerDashboard = () => {
                     },
                     label: {
                         show: true,
-                        position: 'left',
+                        position: 'right',
                         formatter: params => formatCurrency(params.value)
                     }
                 }
@@ -374,7 +387,8 @@ const CustomerDashboard = () => {
                     </TableBody>
                 </Table>
             </Paper>
-
+            {/*Industry anf size metrics */}
+            <CompanyAndIndustryMetrics />
             {/* Additional customer metrics */}
             <Paper elevation={1} sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Additional Metrics</Typography>

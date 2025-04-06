@@ -228,3 +228,65 @@ export const fetchCustomerTrend = async (months = 6) => {
         ];
     }
 };
+
+// Add these to your src/services/ApiService.js file
+
+// Get company size distribution
+export const fetchCompanySizeMetrics = async () => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/customers/company-sizes?_=${timestamp}`);
+    } catch (error) {
+        console.warn("Company size metrics API error, using fallback data:", error);
+        // Return hardcoded fallback data for development
+        return [
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_distribution", "id":"SIZE_0", "label":"Small Medium Business", "count":26, "value_aud":420122.57, "percentage":61.9, "rank":1},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_arr", "id":"SIZE_ARR_0", "label":"ARR: Small Medium Business", "count":0, "value_aud":420122.57, "percentage":43.0, "rank":1},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_avg_arr", "id":"SIZE_AVG_0", "label":"Avg ARR: Small Medium Business", "count":0, "value_aud":16158.56, "percentage":null, "rank":1},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_distribution", "id":"SIZE_1", "label":"Small Business", "count":9, "value_aud":82564.91, "percentage":21.43, "rank":2},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_arr", "id":"SIZE_ARR_1", "label":"ARR: Small Business", "count":0, "value_aud":82564.91, "percentage":8.45, "rank":2},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_avg_arr", "id":"SIZE_AVG_1", "label":"Avg ARR: Small Business", "count":0, "value_aud":9173.88, "percentage":null, "rank":2},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_distribution", "id":"SIZE_2", "label":"Medium Business", "count":6, "value_aud":290697.49, "percentage":14.29, "rank":3},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_arr", "id":"SIZE_ARR_2", "label":"ARR: Medium Business", "count":0, "value_aud":290697.49, "percentage":29.75, "rank":3},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_avg_arr", "id":"SIZE_AVG_2", "label":"Avg ARR: Medium Business", "count":0, "value_aud":48449.58, "percentage":null, "rank":3},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_distribution", "id":"SIZE_3", "label":"Corporate", "count":1, "value_aud":183654.24, "percentage":2.38, "rank":4},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_arr", "id":"SIZE_ARR_3", "label":"ARR: Corporate", "count":0, "value_aud":183654.24, "percentage":18.8, "rank":4},
+            {"snapshot_date":"2025-04-05", "metric_type":"company_size_avg_arr", "id":"SIZE_AVG_3", "label":"Avg ARR: Corporate", "count":0, "value_aud":183654.24, "percentage":null, "rank":4}
+        ];
+    }
+};
+
+// Get top industries by count
+export const fetchIndustriesByCount = async (limit = 10) => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/customers/industries-by-count?limit=${limit}&_=${timestamp}`);
+    } catch (error) {
+        console.warn("Industries by count API error, using fallback data:", error);
+        // Return hardcoded fallback data for development
+        return [
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_count", "id":"IND_COUNT_0", "label":"Construction", "count":22, "value_aud":300659.28, "percentage":52.38, "rank":1},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_count", "id":"IND_COUNT_1", "label":"EdTech (Educational Technology)", "count":3, "value_aud":49200.0, "percentage":7.14, "rank":2},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_count", "id":"IND_COUNT_2", "label":"Software as a Service (SaaS)", "count":3, "value_aud":222032.05, "percentage":7.14, "rank":3},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_count", "id":"IND_COUNT_3", "label":"IT Consulting", "count":3, "value_aud":22950.11, "percentage":7.14, "rank":4}
+        ];
+    }
+};
+
+// Get top industries by ARR
+export const fetchIndustriesByArr = async (limit = 10) => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/customers/industries-by-arr?limit=${limit}&_=${timestamp}`);
+    } catch (error) {
+        console.warn("Industries by ARR API error, using fallback data:", error);
+        // Return hardcoded fallback data for development
+        return [
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_arr", "id":"IND_ARR_0", "label":"Construction", "count":22, "value_aud":300659.28, "percentage":30.77, "rank":1},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_arr", "id":"IND_ARR_1", "label":"Software as a Service (SaaS)", "count":3, "value_aud":222032.05, "percentage":22.72, "rank":2},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_arr", "id":"IND_ARR_2", "label":"Staffing & Recruiting", "count":1, "value_aud":183654.24, "percentage":18.8, "rank":3},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_arr", "id":"IND_ARR_3", "label":"E-commerce", "count":1, "value_aud":50100.0, "percentage":5.13, "rank":4},
+            {"snapshot_date":"2025-04-05", "metric_type":"top_industry_by_arr", "id":"IND_ARR_4", "label":"EdTech (Educational Technology)", "count":3, "value_aud":49200.0, "percentage":5.04, "rank":5}
+        ];
+    }
+};

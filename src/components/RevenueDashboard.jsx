@@ -659,7 +659,65 @@ const RevenueDashboard = () => {
                     </TableBody>
                 </Table>
             </Paper>
+            <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h4" gutterBottom>Annual Recurring Revenue Summary</Typography>
+                <Divider sx={{ mb: 2 }} />
 
+                <Table>
+                    <TableHead>
+                        <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
+                            <TableCell sx={{ fontWeight: 'bold' }}>Revenue Type</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold' }}>% of Annual Revenue</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {/* Recurring */}
+                        <TableRow hover>
+                            <TableCell>EOR Fees</TableCell>
+                            <TableCell align="right">{formatCurrency(subscriptionData.eor_fees_mrr * 12)}</TableCell>
+                            <TableCell align="right">
+                                {formatPercentage((subscriptionData.eor_fees_mrr || 0) / (subscriptionData.total_mrr || 1) * 100)}
+                            </TableCell>
+                        </TableRow>
+                        <TableRow hover>
+                            <TableCell>Device Fees</TableCell>
+                            <TableCell align="right">{formatCurrency(subscriptionData.device_fees_mrr * 12)}</TableCell>
+                            <TableCell align="right">
+                                {formatPercentage((subscriptionData.device_fees_mrr || 0) / (subscriptionData.total_mrr || 1) * 100)}
+                            </TableCell>
+                        </TableRow>
+                        <TableRow hover>
+                            <TableCell>Health Insurance</TableCell>
+                            <TableCell align="right">{formatCurrency(subscriptionData.health_insurance_mrr * 12)}</TableCell>
+                            <TableCell align="right">
+                                {formatPercentage((subscriptionData.health_insurance_mrr || 0) / (subscriptionData.total_mrr || 1) * 100)}
+                            </TableCell>
+                        </TableRow>
+                        <TableRow hover>
+                            <TableCell>Hardware Fees</TableCell>
+                            <TableCell align="right">{formatCurrency(subscriptionData.hardware_fees_mrr * 12)}</TableCell>
+                            <TableCell align="right">
+                                {formatPercentage((subscriptionData.hardware_fees_mrr || 0) / (subscriptionData.total_mrr || 1) * 100)}
+                            </TableCell>
+                        </TableRow>
+                        <TableRow hover>
+                            <TableCell>Software Fees</TableCell>
+                            <TableCell align="right">{formatCurrency(subscriptionData.software_fees_mrr * 12)}</TableCell>
+                            <TableCell align="right">
+                                {formatPercentage((subscriptionData.software_fees_mrr || 0) / (subscriptionData.total_mrr || 1) * 100)}
+                            </TableCell>
+                        </TableRow>
+
+                        {/* Total ARR */}
+                        <TableRow sx={{ backgroundColor: CustomColors.DeepSkyBlue }}>
+                            <TableCell sx={{ fontWeight: 'bold', color: 'white' }}>Total Annual Recurring Revenue</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>{formatCurrency(subscriptionData.total_arr)}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'white' }}>100%</TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </Paper>
 
 
         </Container>

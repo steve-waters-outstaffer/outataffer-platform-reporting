@@ -82,7 +82,7 @@ const AddonsDashboard = () => {
 
         return {
             title: {
-                text: 'Top Countries by Usage',
+                text: 'Subscription by country count',
                 left: 'center',
                 textStyle: { color: CustomColors.UIGrey800 }
             },
