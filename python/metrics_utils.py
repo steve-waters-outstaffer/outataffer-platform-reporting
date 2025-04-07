@@ -37,6 +37,7 @@ def get_all_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
       ON ec.companyId = c.id
     WHERE (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
+      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
     """
 
     df = client.query(query).to_dataframe()
@@ -79,6 +80,7 @@ def get_active_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
       AND ec.role.preferredStartDate <= '{snapshot_date}'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
+      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
     """
 
     df = client.query(query).to_dataframe()
@@ -122,6 +124,7 @@ def get_offboarding_contracts(snapshot_date: datetime.date = None) -> pd.DataFra
       AND ec.role.preferredStartDate <= '{snapshot_date}'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
+      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
     """
 
     df = client.query(query).to_dataframe()
@@ -163,6 +166,7 @@ def get_inactive_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
     WHERE sm.mapped_status = 'Inactive'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
+      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
     """
 
     df = client.query(query).to_dataframe()
@@ -205,6 +209,7 @@ def get_approved_not_started_contracts(snapshot_date: datetime.date = None) -> p
       AND ec.role.preferredStartDate > '{snapshot_date}'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
+      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
     """
 
     df = client.query(query).to_dataframe()
@@ -663,6 +668,8 @@ def get_enabled_users() -> pd.DataFrame:
     logger.info(f"Loaded {len(users_df)} enabled users")
     return users_df
 
+#Plans and add-ons
+
 def get_plan_addons():
     """
     Fetch plan add-ons metadata from BigQuery.
@@ -809,3 +816,282 @@ def map_device_to_os(device_meta):
     os_df = pd.DataFrame(os_map)
     logger.info(f"Mapped {len(os_df)} devices to OS types")
     return os_df
+
+#Health insurance
+
+# Health Insurance Utilities
+
+def get_health_insurance_plans_by_country(client=None):
+    """
+    Fetch health insurance plan availability by country from BigQuery.
+
+    Args:
+        client: BigQuery client (uses module-level client if None)
+
+    Returns:
+        pd.DataFrame: Health insurance plans with availability by country
+    """
+    if client is None:
+        client = globals().get('client')  # Use module-level client
+
+    logger = logging.getLogger(__name__)
+    logger.info("Loading health insurance plan availability by country...")
+
+    # This approach uses explicit JSON paths for each country
+    # instead of dynamic path construction which doesn't work in BigQuery
+    query = """
+    WITH plans AS (
+      SELECT 
+        id AS plan_id,
+        key AS plan_key,
+        label AS plan_label,
+        description,
+        countryFieldOverrides
+      FROM `outstaffer-app-prod.firestore_exports.health_insurance_options`
+      WHERE (__has_error__ IS NULL OR __has_error__ = FALSE)
+    ),
+    
+    -- Extract each country's availability explicitly
+    expanded_countries AS (
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- Australia
+        'AU' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.AU.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.AU.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.AU.description'),
+          description
+        ) AS country_description
+      FROM plans
+      
+      UNION ALL
+      
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- Philippines
+        'PH' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.PH.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.PH.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.PH.description'),
+          description
+        ) AS country_description
+      FROM plans
+      
+      UNION ALL
+      
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- Singapore
+        'SG' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.SG.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.SG.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.SG.description'),
+          description
+        ) AS country_description
+      FROM plans
+      
+      UNION ALL
+      
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- Thailand
+        'TH' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.TH.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.TH.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.TH.description'),
+          description
+        ) AS country_description
+      FROM plans
+      
+      UNION ALL
+      
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- Vietnam
+        'VN' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.VN.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.VN.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.VN.description'),
+          description
+        ) AS country_description
+      FROM plans
+      
+      UNION ALL
+      
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- Malaysia
+        'MY' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.MY.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.MY.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.MY.description'),
+          description
+        ) AS country_description
+      FROM plans
+      
+      UNION ALL
+      
+      SELECT
+        plan_id,
+        plan_key,
+        plan_label,
+        description,
+        -- India
+        'IN' AS country,
+        CASE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.IN.isDisabled') = 'true' THEN FALSE
+          WHEN JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.IN.isDisabled') = 'false' THEN TRUE
+          ELSE TRUE
+        END AS is_enabled,
+        IFNULL(
+          JSON_EXTRACT_SCALAR(TO_JSON_STRING(countryFieldOverrides), '$.IN.description'),
+          description
+        ) AS country_description
+      FROM plans
+    )
+    
+    -- Filter to only include enabled plans and return the final result
+    SELECT
+      plan_id,
+      plan_key,
+      plan_label,
+      country,
+      is_enabled,
+      country_description
+    FROM expanded_countries
+    WHERE is_enabled = TRUE
+    ORDER BY country, plan_label
+    """
+
+    availability_df = client.query(query).to_dataframe()
+    logger.info(f"Loaded {len(availability_df)} plan-country availability rows")
+    return availability_df
+def get_contracts_with_health_insurance_data(contracts_df, plans_df=None, client=None):
+    """
+    Enrich contract data with health insurance information including plan details.
+
+    Args:
+        contracts_df: DataFrame containing contracts with at least contract_id
+        plans_df: Optional DataFrame with plan data from get_health_insurance_plans_by_country()
+        client: BigQuery client (uses module-level client if None)
+
+    Returns:
+        pd.DataFrame: Contracts with added health insurance data and plan details
+    """
+    if client is None:
+        client = globals().get('client')  # Use module-level client
+
+    if contracts_df.empty:
+        return contracts_df  # Return empty df if no contracts
+
+    logger = logging.getLogger(__name__)
+
+    # Extract contract IDs
+    contract_ids = contracts_df['contract_id'].tolist()
+    contract_ids_str = ','.join(f"'{id}'" for id in contract_ids)
+
+    # Get health insurance data for contracts
+    query = f"""
+    SELECT
+        ec.id AS contract_id,
+        ec.employmentLocation.country AS country,
+        ec.benefits.healthInsurance AS insurance_plan_id,
+        ec.benefits.addOns.DEPENDENT AS dependent_count
+    FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
+    WHERE ec.id IN ({contract_ids_str})
+      AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
+    """
+
+    logger.info(f"Loading health insurance data for {len(contract_ids)} contracts...")
+    health_df = client.query(query).to_dataframe()
+    logger.info(f"Loaded health insurance data for {len(health_df)} contracts")
+
+    # Merge health insurance data with the original contracts dataframe
+    # Using left join to ensure we keep all original contracts even if no health data
+    merged_df = contracts_df.merge(
+        health_df,
+        on='contract_id',
+        how='left',
+        suffixes=('', '_health')
+    )
+
+    # Handle duplicate country columns (if both dataframes have it)
+    if 'country_health' in merged_df.columns:
+        # Prefer original country if available, otherwise use health country
+        merged_df['country'] = merged_df['country'].fillna(merged_df['country_health'])
+        merged_df.drop('country_health', axis=1, inplace=True)
+
+    # If we have plans data, join it to get plan details
+    if plans_df is None:
+        logger.info("Fetching health insurance plans data...")
+        plans_df = get_health_insurance_plans_by_country(client)
+
+    # Rename plans columns for clarity
+    plans_df = plans_df.rename(columns={
+        'plan_id': 'insurance_plan_id',
+        'plan_label': 'insurance_plan_label',
+        'plan_key': 'insurance_plan_key',
+        'country_description': 'insurance_plan_description'
+    })
+
+    # Create a composite key for joining plan data
+    plans_df['merge_key'] = plans_df['country'] + '_' + plans_df['insurance_plan_id']
+    merged_df['merge_key'] = merged_df['country'].astype(str) + '_' + merged_df['insurance_plan_id'].astype(str)
+
+    # Join plan details
+    result_df = merged_df.merge(
+        plans_df[['merge_key', 'insurance_plan_label', 'insurance_plan_key',
+                  'insurance_plan_description', 'is_enabled']],
+        on='merge_key',
+        how='left'
+    )
+
+    # Clean up
+    result_df.drop('merge_key', axis=1, inplace=True)
+
+    # Add a flag to identify if a contract has a valid insurance plan for its country
+    result_df['has_valid_insurance'] = result_df['is_enabled'].fillna(False)
+
+    return result_df

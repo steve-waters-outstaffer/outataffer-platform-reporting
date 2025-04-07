@@ -6,6 +6,11 @@ import logging
 import sys
 import argparse
 from snapshot_utils import write_snapshot_to_bigquery
+from metrics_utils import (
+    get_active_contracts,
+    get_health_insurance_plans_by_country,
+    get_contracts_with_health_insurance_data
+)
 
 # Set up argument parser
 parser = argparse.ArgumentParser(description='Generate health insurance metrics snapshot')
@@ -22,152 +27,147 @@ table_id = 'outstaffer-app-prod.dashboard_metrics.health_insurance_metrics'
 SNAPSHOT_DATE = datetime.now().date()
 logger.info(f"Processing health insurance snapshot for: {SNAPSHOT_DATE}")
 
-# Load plan availability view (flattened)
-logger.info("Loading health insurance plan availability by country...")
-availability_df = client.query("""
-    SELECT plan_id, plan_key, plan_label, country, is_enabled
-    FROM `outstaffer-app-prod.dashboard_metrics.health_insurnace_country_availability`
-    WHERE is_enabled = TRUE
-""").to_dataframe()
-logger.info(f"Loaded {len(availability_df)} plan-country availability rows")
+# Step 1: Get all available health insurance plans by country
+available_plans = get_health_insurance_plans_by_country(client)
+logger.info(f"Loaded {len(available_plans)} plan-country availability rows")
 
-# Load active contracts
-logger.info("Loading active contracts with country and insurance plan...")
-contracts_df = client.query("""
-    SELECT
-        ec.id AS contract_id,
-        ec.companyId,
-        ec.employmentLocation.country AS country,
-        ec.role.preferredStartDate AS start_date,
-        ec.status,
-        sm.mapped_status,
-        ec.benefits.healthInsurance AS insurance_plan,
-        ec.benefits.addOns.DEPENDENT AS dependent_count
-    FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
-    JOIN `outstaffer-app-prod.firestore_exports.companies` c ON ec.companyId = c.id
-    JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` sm ON ec.status = sm.contract_status
-    WHERE (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
-      AND sm.mapped_status = 'Active'
-""").to_dataframe()
-logger.info(f"Loaded {len(contracts_df)} active contracts")
+# Step 2: Get active contracts and enrich with health insurance data
+active_contracts = get_active_contracts(SNAPSHOT_DATE)
+logger.info(f"Loaded {len(active_contracts)} active contracts")
 
-# Step 2: Convert dates
-contracts_df['start_date'] = pd.to_datetime(contracts_df['start_date']).dt.date
-snapshot_date = datetime.now().date()
+# Enrich contracts with health insurance data
+contracts_with_health = get_contracts_with_health_insurance_data(active_contracts, available_plans, client)
+logger.info(f"Enriched {len(contracts_with_health)} contracts with health insurance data")
 
-# Step 3: Categorise contracts
-contracts_df['contract_category'] = 'active'
-contracts_df.loc[contracts_df['status'] == 'OFFBOARDING', 'contract_category'] = 'offboarding'
-contracts_df.loc[contracts_df['start_date'] > snapshot_date, 'contract_category'] = 'approved_not_started'
+# Step 3: Count the number of contracts per country to get eligible population
+country_totals = contracts_with_health.groupby('country').size().reset_index(name='eligible_population')
 
-# Filter to include only active and offboarding
-contracts_df = contracts_df[contracts_df['contract_category'].isin(['active', 'offboarding'])]
+# Step 4: Count health plan adoption by country
+plan_adoption = contracts_with_health.groupby(
+    ['country', 'insurance_plan_id', 'insurance_plan_label']
+).size().reset_index(name='uptake_count')
 
-# Step 4: Subsets (if needed downstream)
-active_contracts = contracts_df[contracts_df['contract_category'] == 'active']
-offboarding_contracts = contracts_df[contracts_df['contract_category'] == 'offboarding']
-approved_not_started_contracts = contracts_df[contracts_df['contract_category'] == 'approved_not_started']
-
-# Optional: if you only want to calculate metrics using 'active' + 'offboarding':
-revenue_contracts = contracts_df[contracts_df['contract_category'].isin(['active', 'offboarding'])]
-
-
-# Join contracts to availability to get valid matches
-logger.info("Joining contracts to plan availability...")
-contracts_df['country'] = contracts_df['country'].fillna('UNKNOWN')
-availability_df['country'] = availability_df['country'].fillna('UNKNOWN')
-
-valid_matches = pd.merge(
-    contracts_df,
-    availability_df,
-    left_on=['country', 'insurance_plan'],
-    right_on=['country', 'plan_id'],
-    how='inner'
-)
-logger.info(f"Matched {len(valid_matches)} contracts with valid insurance options")
-
-# Get total eligible contracts per country (any contract in a country with at least one valid option)
-eligible_contracts = pd.merge(
-    contracts_df,
-    availability_df[['country']].drop_duplicates(),
+# Merge in country totals to calculate percentages
+plan_adoption = plan_adoption.merge(
+    country_totals,
     on='country',
-    how='inner'
+    how='left'
 )
 
-# Begin metrics construction
+# Calculate adoption percentage
+plan_adoption['uptake_percentage'] = (
+        plan_adoption['uptake_count'] / plan_adoption['eligible_population'] * 100
+).fillna(0)
+
+# Step 5: Generate complete metrics with zero-uptake plans included
+all_combinations = []
+multi_country_plans = set(available_plans.groupby('plan_id').filter(lambda x: len(x['country'].unique()) > 1)['plan_id'])
+
+for country in contracts_with_health['country'].unique():
+    valid_plans = available_plans[available_plans['country'] == country]
+    eligible_pop = country_totals[country_totals['country'] == country]['eligible_population'].iloc[0] if not country_totals[country_totals['country'] == country].empty else 0
+
+    for _, plan in valid_plans.iterrows():
+        adoption_data = plan_adoption[
+            (plan_adoption['country'] == country) &
+            (plan_adoption['insurance_plan_id'] == plan['plan_id'])
+            ]
+        uptake_count = adoption_data['uptake_count'].iloc[0] if not adoption_data.empty else 0
+        uptake_percentage = adoption_data['uptake_percentage'].iloc[0] if not adoption_data.empty else 0
+
+        all_combinations.append({
+            'country': country,
+            'insurance_plan_id': plan['plan_id'],
+            'insurance_plan_key': plan['plan_key'],
+            'insurance_plan_label': plan['plan_label'],
+            'insurance_plan_description': plan['country_description'],
+            'uptake_count': uptake_count,
+            'eligible_population': eligible_pop,
+            'uptake_percentage': uptake_percentage,
+            'is_available': True,
+            'is_multi_country': plan['plan_id'] in multi_country_plans  # New field
+        })
+
+complete_metrics = pd.DataFrame(all_combinations)
+
+# Step 6: Create country-level summary metrics
+country_metrics = contracts_with_health.groupby('country').agg(
+    total_with_insurance=('insurance_plan_id', lambda x: x.notna().sum()),
+    total_dependents=('dependent_count', lambda x: x[x > 0].sum())
+).reset_index()
+
+# Merge with country totals
+country_metrics = country_metrics.merge(country_totals, on='country', how='left')
+
+# Calculate coverage percentage
+country_metrics['coverage_percentage'] = (
+        country_metrics['total_with_insurance'] / country_metrics['eligible_population'] * 100
+).fillna(0)
+
+# Calculate dependent percentage
+country_metrics['dependent_percentage'] = (
+        country_metrics['total_dependents'] / country_metrics['eligible_population'] * 100
+).fillna(0)
+
+# Step 7: Begin metrics construction for BigQuery snapshot
 metrics = []
-
-# 1. Plan uptake per country (only where plan is enabled)
-plan_country_counts = valid_matches.groupby(['country', 'plan_id', 'plan_label']).contract_id.nunique().reset_index(name='uptake_count')
-country_totals = eligible_contracts.groupby('country').contract_id.nunique().reset_index(name='eligible_population')
-
-merged = pd.merge(plan_country_counts, country_totals, on='country', how='left')
-
-for _, row in merged.iterrows():
+for _, row in complete_metrics.iterrows():
     metrics.append({
         'snapshot_date': SNAPSHOT_DATE,
         'metric_type': 'health_insurance_plan_by_country',
-        'id': row['plan_id'],
-        'label': f"{row['plan_label']} ({row['country']})",
+        'id': row['insurance_plan_id'],
+        'label': f"{row['insurance_plan_label']} ({row['country']})",
         'count': int(row['uptake_count']),
-        'overall_percentage': row['uptake_count'] / row['eligible_population'] * 100 if row['eligible_population'] > 0 else 0,
+        'overall_percentage': float(row['uptake_percentage']),
         'category_percentage': 100.0,
-        'contract_count': int(row['uptake_count'])
+        'contract_count': int(row['uptake_count']),
+        'is_multi_country': row['is_multi_country']  # Add this to schema
     })
 
-# 2. Total uptake per country
-uptake_by_country = valid_matches.groupby('country').contract_id.nunique().reset_index(name='uptake_count')
-
-for _, row in uptake_by_country.iterrows():
-    eligible = country_totals[country_totals['country'] == row['country']]['eligible_population'].values[0]
+# Add country-level metrics
+for _, row in country_metrics.iterrows():
+    # Total with insurance metrics
     metrics.append({
         'snapshot_date': SNAPSHOT_DATE,
         'metric_type': 'health_insurance_total_by_country',
         'id': row['country'],
         'label': row['country'],
-        'count': int(row['uptake_count']),
-        'overall_percentage': row['uptake_count'] / eligible * 100 if eligible > 0 else 0,
+        'count': int(row['total_with_insurance']),
+        'overall_percentage': float(row['coverage_percentage']),
         'category_percentage': 100.0,
-        'contract_count': int(row['uptake_count'])
+        'contract_count': int(row['total_with_insurance'])
     })
 
-# 3. Overall eligible population by country
-for _, row in country_totals.iterrows():
+    # Eligible population metrics
     metrics.append({
         'snapshot_date': SNAPSHOT_DATE,
         'metric_type': 'eligible_contracts_by_country',
         'id': row['country'],
         'label': row['country'],
         'count': int(row['eligible_population']),
-        'overall_percentage': 0,
-        'category_percentage': 0,
+        'overall_percentage': 0.0,
+        'category_percentage': 0.0,
         'contract_count': int(row['eligible_population'])
     })
 
-# 4. Total dependents by country for valid contracts (only LOCAL in PH)
-valid_matches['dependent_count'] = pd.to_numeric(valid_matches['dependent_count'], errors='coerce').fillna(0)
-dependent_filter = valid_matches[(valid_matches['plan_key'] == 'LOCAL') & (valid_matches['country'] == 'PH')]
-dependent_summary = dependent_filter.groupby('country').dependent_count.sum().reset_index(name='total_dependents')
+    # Dependent metrics - only add if country has dependents
+    if row['total_dependents'] > 0:
+        metrics.append({
+            'snapshot_date': SNAPSHOT_DATE,
+            'metric_type': 'health_insurance_dependents_by_country',
+            'id': row['country'],
+            'label': row['country'],
+            'count': int(row['total_dependents']),
+            'overall_percentage': float(row['dependent_percentage']),
+            'category_percentage': 100.0,
+            'contract_count': int(row['eligible_population'])
+        })
 
-for _, row in dependent_summary.iterrows():
-    eligible = country_totals[country_totals['country'] == row['country']]['eligible_population'].values[0]
-    metrics.append({
-        'snapshot_date': SNAPSHOT_DATE,
-        'metric_type': 'health_insurance_dependents_by_country',
-        'id': row['country'],
-        'label': row['country'],
-        'count': int(row['total_dependents']),
-        'overall_percentage': row['total_dependents'] / eligible * 100 if eligible > 0 else 0,
-        'category_percentage': 100.0,
-        'contract_count': int(eligible)
-    })
-
-# Finalise
+# Step 8: Create metrics DataFrame
 metrics_df = pd.DataFrame(metrics)
-logger.info(f"Generated {len(metrics_df)} country-segmented health insurance metrics")
+logger.info(f"Generated {len(metrics_df)} metrics rows")
 
-# Define schema
+# Update schema
 schema = [
     bigquery.SchemaField("snapshot_date", "DATE"),
     bigquery.SchemaField("metric_type", "STRING"),
@@ -176,7 +176,8 @@ schema = [
     bigquery.SchemaField("count", "INTEGER"),
     bigquery.SchemaField("overall_percentage", "FLOAT"),
     bigquery.SchemaField("category_percentage", "FLOAT"),
-    bigquery.SchemaField("contract_count", "INTEGER")
+    bigquery.SchemaField("contract_count", "INTEGER"),
+    bigquery.SchemaField("is_multi_country", "BOOLEAN")  # New field
 ]
 
 # Write to BigQuery
