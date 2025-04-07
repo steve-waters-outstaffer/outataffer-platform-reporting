@@ -267,7 +267,17 @@ const HealthInsuranceDashboard = () => {
         const countries = Object.keys(summaryData).sort((a, b) => (summaryData[b]?.totalWithInsurance || 0) - (summaryData[a]?.totalWithInsurance || 0));
         return {
             title: { text: 'Insurance Coverage by Country', left: 'center', textStyle: { color: CustomColors.UIGrey800 } },
-            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params) => `${params[0].name}: ${params[0].value} of ${summaryData[params[0].name]?.totalEligible || 0} employees (${formatPercentage(params[0].value2)})` },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                formatter: (params) => {
+                    const country = params[0].name;
+                    const totalWithInsurance = summaryData[country]?.totalWithInsurance || 0;
+                    const totalEligible = summaryData[country]?.totalEligible || 0;
+                    const coveragePercentage = summaryData[country]?.coveragePercentage || 0;
+                    return `${country}: ${totalWithInsurance} of ${totalEligible} employees (${formatPercentage(coveragePercentage)})`;
+                }
+            },
             grid: { left: '20%', right: '4%', bottom: '3%', containLabel: true },
             xAxis: { type: 'value' },
             yAxis: { type: 'category', data: countries, axisLabel: { color: CustomColors.UIGrey700 }, inverse: true },
@@ -309,7 +319,7 @@ const HealthInsuranceDashboard = () => {
                         <CardContent>
                             <Typography variant="h7" gutterBottom>OVERALL COVERAGE RATE</Typography>
                             <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1 }}>{formatPercentage(processedData.overall?.overallCoveragePercentage)}</Typography>
-                            <Typography variant="bodySmall">{processedData.overall?.totalWithInsurance} of {processedData.overall?.totalEligible} eligible contracts</Typography>
+                            <Typography variant="bodySmall">{processedData.overall?.totalWithInsurance} of {processedData.overall?.totalEligible} active contracts</Typography>
                         </CardContent>
                     </Card>
                 </Grid>

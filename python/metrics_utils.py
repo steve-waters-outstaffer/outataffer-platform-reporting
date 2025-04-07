@@ -1095,3 +1095,17 @@ def get_contracts_with_health_insurance_data(contracts_df, plans_df=None, client
     result_df['has_valid_insurance'] = result_df['is_enabled'].fillna(False)
 
     return result_df
+
+# Country functions
+
+def get_all_countries():
+    from google.cloud import bigquery
+    client = bigquery.Client()
+
+    query = """
+        SELECT countryCode, name
+        FROM `outstaffer-app-prod.firestore_exports.countries`
+        WHERE __has_error__ IS NULL OR __has_error__ = FALSE
+    """
+    result = client.query(query)
+    return [dict(row) for row in result]
