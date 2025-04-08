@@ -291,19 +291,60 @@ export const fetchIndustriesByArr = async (limit = 10) => {
     }
 };
 
+// Add to ApiService.js
+
 export const fetchRevenueByCountry = async () => {
     try {
         const timestamp = new Date().getTime();
         return apiRequest(`/revenue/countries?_=${timestamp}`);
     } catch (error) {
         console.warn("Revenue by country API error, using fallback data:", error);
-        // Return some sample data for development
+        // Fallback data if the API fails
         return [
-            { id: "PH", label: "Philippines", count: 96, value_aud: 58904.59, percentage: 87.44 },
-            { id: "VN", label: "Vietnam", count: 12, value_aud: 4500.00, percentage: 6.68 },
-            { id: "TH", label: "Thailand", count: 8, value_aud: 2200.00, percentage: 3.26 },
-            { id: "AU", label: "Australia", count: 3, value_aud: 1760.00, percentage: 2.61 },
-            { id: "MY", label: "Malaysia", count: 0, value_aud: 0, percentage: 0 }
+            {
+                "name": "Philippines",
+                "trend": [
+                    {
+                        "month": "Apr 2025",
+                        "active_subscriptions": 96,
+                        "total_mrr": 58904.60,
+                        "date": "2025-04-08"
+                    }
+                ]
+            },
+            {
+                "name": "Thailand",
+                "trend": [
+                    {
+                        "month": "Apr 2025",
+                        "active_subscriptions": 8,
+                        "total_mrr": 4398.0,
+                        "date": "2025-04-08"
+                    }
+                ]
+            },
+            {
+                "name": "Vietnam",
+                "trend": [
+                    {
+                        "month": "Apr 2025",
+                        "active_subscriptions": 5,
+                        "total_mrr": 3235.5,
+                        "date": "2025-04-08"
+                    }
+                ]
+            },
+            {
+                "name": "Australia",
+                "trend": [
+                    {
+                        "month": "Apr 2025",
+                        "active_subscriptions": 1,
+                        "total_mrr": 825.7,
+                        "date": "2025-04-08"
+                    }
+                ]
+            }
         ];
     }
 };

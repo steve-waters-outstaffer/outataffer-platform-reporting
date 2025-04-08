@@ -26,53 +26,28 @@ async def revenue_latest(api_key: str = Depends(verify_api_key)):
         if not rows:
             return {"error": "No data found"}
 
-        # Transform rows into a single dict matching the old structure
-        result_dict = {"snapshot_date": rows[0].snapshot_date.isoformat()}
+        result_dict = {
+            "snapshot_date": rows[0].snapshot_date.isoformat()
+        }
+
         for row in rows:
-            key_map = {
-                "total_active": "total_active_subscriptions",
-                "eor_fees": "eor_fees_mrr",
-                "device_fees": "device_fees_mrr",
-                "hardware_fees": "hardware_fees_mrr",
-                "software_fees": "software_fees_mrr",
-                "health_insurance": "health_insurance_mrr",
-                "total_mrr": "total_mrr",
-                "total_arr": "total_arr",
-                "total_customers": "total_customers",
-                "approved_not_started": "approved_not_started",
-                "offboarding_contracts": "offboarding_contracts",
-                "total_contracts": "total_contracts",
-                "revenue_generating_contracts": "revenue_generating_contracts",
-                "new_subscriptions": "new_subscriptions",
-                "churned_subscriptions": "churned_subscriptions",
-                "retention_rate": "retention_rate",
-                "churn_rate": "churn_rate",
-                "placement_fees": "placement_fees",
-                "finalisation_fees": "finalisation_fees",
-                "one_time_fees": "one_time_fees",
-                "total_monthly_revenue": "total_monthly_revenue",
-                "new_customers_this_month": "new_customers_this_month",
-                "avg_subscription_value": "avg_subscription_value",
-                "recurring_revenue_percentage": "recurring_revenue_percentage",
-                "one_time_revenue_percentage": "one_time_revenue_percentage",
-                "addon_revenue_percentage": "addon_revenue_percentage",
-                "avg_days_until_start": "avg_days_until_start",
-                "plan_change_rate": "plan_change_rate",
-                "laptops_count": "laptops_count",
-            }
-            key = key_map.get(row.id, row.id)
+            key = row.id
+            if key not in result_dict:
+                result_dict[key] = {}
+
             if row.count is not None:
-                result_dict[key] = row.count
-            elif row.value_aud is not None:
-                result_dict[key] = row.value_aud
-            elif row.percentage is not None:
-                result_dict[key] = row.percentage
+                result_dict[key]["count"] = row.count
+            if row.value_aud is not None:
+                result_dict[key]["value_aud"] = float(row.value_aud)
+            if row.percentage is not None:
+                result_dict[key]["percentage"] = float(row.percentage)
 
         return result_dict
 
     except Exception as e:
         logger.error(f"Error fetching latest revenue metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 @router.get("/trend")
 async def revenue_trend(months: int = 6, api_key: str = Depends(verify_api_key)):
