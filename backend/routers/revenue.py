@@ -163,7 +163,7 @@ async def subscription_trend(months: int = 6, api_key: str = Depends(verify_api_
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @router.get("/countries")
-async def revenue_by_country(api_key: str = Depends(verify_api_key)):
+async def revenue_by_country(months: int = 6, api_key: str = Depends(verify_api_key)):
     """
     Get revenue breakdown by country from the latest snapshot.
     Returns countries sorted by revenue.
@@ -171,15 +171,17 @@ async def revenue_by_country(api_key: str = Depends(verify_api_key)):
     try:
         query = """
             SELECT snapshot_date, id AS country, label AS country_name, count AS active_subscriptions, value_aud AS total_mrr
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_metrics_by_row`
+            FROM `outstaffer-app-prod.dashboard_metrics.monthly_revenue_metrics`
             WHERE metric_type = 'revenue_by_country'
             AND snapshot_date >= DATE_SUB(
-                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_metrics_by_row`),
+                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_revenue_metrics`),
                 INTERVAL @months MONTH
             )
             ORDER BY snapshot_date, country
         """
-        job_config = bigquery.QueryJobConfig(query_parameters=[bigquery.ScalarQueryParameter("months", "INT64", months)])
+        job_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("months", "INT64", months)
+        ])
         query_job = client.query(query, job_config=job_config)
         results = query_job.result()
 
