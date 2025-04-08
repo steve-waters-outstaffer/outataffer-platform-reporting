@@ -24,6 +24,7 @@ import { CustomColors } from '../theme';
 import { fetchLatestRevenueMetrics, fetchRevenueTrend, fetchSubscriptionTrend} from '../services/ApiService';
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CountryBreakdown from './CountryBreakdown'; // If separate component
 
 
 
@@ -578,7 +579,8 @@ const RevenueDashboard = () => {
                     </Paper>
                 </Grid>
             </Grid>
-
+            {/* After existing revenue content */}
+            <CountryBreakdown />
             <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
                 <Typography variant="h4" gutterBottom>Monthly Revenue Summary</Typography>
                 <Divider sx={{ mb: 2 }} />

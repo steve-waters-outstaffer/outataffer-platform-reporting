@@ -290,3 +290,20 @@ export const fetchIndustriesByArr = async (limit = 10) => {
         ];
     }
 };
+
+export const fetchRevenueByCountry = async () => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/revenue/countries?_=${timestamp}`);
+    } catch (error) {
+        console.warn("Revenue by country API error, using fallback data:", error);
+        // Return some sample data for development
+        return [
+            { id: "PH", label: "Philippines", count: 96, value_aud: 58904.59, percentage: 87.44 },
+            { id: "VN", label: "Vietnam", count: 12, value_aud: 4500.00, percentage: 6.68 },
+            { id: "TH", label: "Thailand", count: 8, value_aud: 2200.00, percentage: 3.26 },
+            { id: "AU", label: "Australia", count: 3, value_aud: 1760.00, percentage: 2.61 },
+            { id: "MY", label: "Malaysia", count: 0, value_aud: 0, percentage: 0 }
+        ];
+    }
+};

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud import bigquery
 from auth import verify_api_key
+import datetime
 import logging
 
 router = APIRouter()
@@ -161,15 +162,19 @@ async def subscription_trend(months: int = 6, api_key: str = Depends(verify_api_
         logger.error(f"Error fetching subscription trend: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-@router.get("/country-metrics")
-async def country_metrics(months: int = 6, api_key: str = Depends(verify_api_key)):
+@router.get("/countries")
+async def revenue_by_country(api_key: str = Depends(verify_api_key)):
+    """
+    Get revenue breakdown by country from the latest snapshot.
+    Returns countries sorted by revenue.
+    """
     try:
         query = """
             SELECT snapshot_date, id AS country, label AS country_name, count AS active_subscriptions, value_aud AS total_mrr
-            FROM `outstaffer-app-prod.dashboard_metrics.monthly_revenue_metrics`
+            FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_metrics_by_row`
             WHERE metric_type = 'revenue_by_country'
             AND snapshot_date >= DATE_SUB(
-                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_revenue_metrics`),
+                (SELECT MAX(snapshot_date) FROM `outstaffer-app-prod.dashboard_metrics.monthly_subscription_metrics_by_row`),
                 INTERVAL @months MONTH
             )
             ORDER BY snapshot_date, country
