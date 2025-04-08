@@ -21,7 +21,7 @@ import {
 import * as echarts from 'echarts';
 import EChartsComponent from './Chart';
 import { CustomColors } from '../theme';
-import { fetchLatestRevenueMetrics, fetchRevenueTrend, fetchSubscriptionTrend, checkApiHealth } from '../services/ApiService';
+import { fetchLatestRevenueMetrics, fetchRevenueTrend, fetchSubscriptionTrend} from '../services/ApiService';
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
@@ -112,7 +112,6 @@ const RevenueDashboard = () => {
                 }
             },
             yAxis: {
-                type: 'category',
                 data: ['EOR Fees', 'Device Fees', 'Hardware', 'Software', 'Health Insurance', 'Placement Fees'],
                 axisLabel: {
                     color: CustomColors.UIGrey700
@@ -120,15 +119,13 @@ const RevenueDashboard = () => {
             },
             series: [
                 {
-                    name: 'Revenue',
-                    type: 'bar',
                     data: [
                         data.eor_fees_mrr,
                         data.device_fees_mrr,
                         data.hardware_fees_mrr,
                         data.software_fees_mrr,
                         data.health_insurance_mrr,
-                        data.placement_fees_monthly
+                        data.placement_fees, // Changed from placement_fees_monthly
                     ],
                     itemStyle: {
                         color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
@@ -281,7 +278,7 @@ const RevenueDashboard = () => {
                     data: [
                         { value: coreEorRevenue, name: 'Core EOR', itemStyle: { color: CustomColors.MidnightBlue } },
                         { value: addonRevenue, name: 'Add-ons', itemStyle: { color: CustomColors.DeepSkyBlue } },
-                        { value: data.placement_fees_monthly, name: 'One-time Fees', itemStyle: { color: CustomColors.Meadow } }
+                        { value: data.placement_fees, name: 'One-time Fees', itemStyle: { color: CustomColors.Meadow } }, // Changed from placement_fees_monthly
                     ]
                 }
             ]

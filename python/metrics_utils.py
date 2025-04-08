@@ -1105,7 +1105,8 @@ def get_all_countries():
     query = """
         SELECT countryCode, name
         FROM `outstaffer-app-prod.firestore_exports.countries`
-        WHERE __has_error__ IS NULL OR __has_error__ = FALSE
+        WHERE (__has_error__ IS NULL OR __has_error__ = FALSE)
+        AND 'EMPLOYEE' IN UNNEST(type)
     """
     result = client.query(query)
     return [dict(row) for row in result]
