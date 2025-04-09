@@ -90,7 +90,7 @@ const RevenueDashboard = () => {
 
         return {
             tooltip: { trigger: 'axis', formatter: params => `${params[0].name}: ${formatCurrency(params[0].value)}` },
-            grid: { left: '10%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+            grid: { left: '10%', right: '15%', bottom: '15%', top: '10%', containLabel: true },
             xAxis: { type: 'category', boundaryGap: false, data: months, axisLabel: { color: CustomColors.UIGrey700, margin: 14 } },
             yAxis: { type: 'value', axisLabel: { formatter: value => formatCurrency(value) } },
             series: [{
@@ -123,7 +123,7 @@ const RevenueDashboard = () => {
 
         return {
             tooltip: { trigger: 'axis', formatter: params => `${params[0].name}: ${params[0].value} subscriptions` },
-            grid: { left: '10%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+            grid: { left: '10%', right: '15%', bottom: '15%', top: '10%', containLabel: true },
             xAxis: { type: 'category', boundaryGap: false, data: months, axisLabel: { color: CustomColors.UIGrey700, margin: 14 } },
             yAxis: { type: 'value', axisLabel: { formatter: value => value } },
             series: [{

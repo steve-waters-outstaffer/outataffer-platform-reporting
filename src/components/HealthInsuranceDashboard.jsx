@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import CountryFlag from './common/CountryFlag';
 import {
     Box,
     Grid,
@@ -292,7 +293,7 @@ const HealthInsuranceDashboard = () => {
                     return `${country}: ${totalWithInsurance} of ${totalEligible} employees (${formatPercentage(coveragePercentage)})`;
                 }
             },
-            grid: { left: '20%', right: '4%', bottom: '3%', containLabel: true },
+            grid: { left: '10%', right: '10%', bottom: '3%', containLabel: true },
             xAxis: { type: 'value' },
             yAxis: { type: 'category', data: countries, axisLabel: { color: CustomColors.UIGrey700 }, inverse: true },
             series: [{
@@ -425,7 +426,7 @@ const HealthInsuranceDashboard = () => {
             {sortedCountries.map(country => (
                 <Paper elevation={1} sx={{ p: 3, mb: 3 }} key={country}>
                     <Typography variant="h5" gutterBottom sx={{ backgroundColor: CustomColors.UIGrey200, color: CustomColors.UIGrey800, padding: '8px 16px', borderRadius: '4px' }}>
-                        {country} Health Insurance Overview
+                        <CountryFlag countryCode={country} size={20} variant="code" /> {country} Health Insurance Overview
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
                     <Grid container spacing={3}>

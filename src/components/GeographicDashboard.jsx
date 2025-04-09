@@ -1,5 +1,6 @@
 // src/components/GeographicDashboard.jsx
 import React, { useState, useEffect } from 'react';
+import CountryFlag from './common/CountryFlag';
 import {
     Box,
     Grid,
@@ -87,22 +88,6 @@ const GeographicDashboard = () => {
     const formatPercentage = (value) => {
         if (value === null || value === undefined) return '-';
         return `${value.toFixed(1)}%`;
-    };
-
-    // Get country flag emoji
-    const getCountryFlag = (countryCode) => {
-        if (!countryCode) return '🌎'; // Default globe emoji if no country code
-
-        try {
-            const codePoints = countryCode
-                .toUpperCase()
-                .split('')
-                .map(char => 127397 + char.charCodeAt());
-            return String.fromCodePoint(...codePoints);
-        } catch (err) {
-            console.error(`Error creating flag for country: ${countryCode}`, err);
-            return '🌎';
-        }
     };
 
     // Chart options for country breakdown
@@ -205,7 +190,7 @@ const GeographicDashboard = () => {
             },
             grid: {
                 left: '3%',
-                right: '4%',
+                right: '10%',
                 bottom: '3%',
                 containLabel: true
             },
@@ -404,7 +389,7 @@ const GeographicDashboard = () => {
                                         {country.name}
                                     </Typography>
                                     <Typography variant="h3" sx={{ fontSize: '2rem' }}>
-                                        {getCountryFlag(country.id)}
+                                        <CountryFlag countryCode={country.id} size={32} />
                                     </Typography>
                                 </Box>
 
@@ -495,8 +480,14 @@ const GeographicDashboard = () => {
                         {sortedCountries.map((country) => (
                             <TableRow key={country.id} hover>
                                 <TableCell>
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Typography sx={{ fontSize: '1.5rem', mr: 1 }}>{getCountryFlag(country.id)}</Typography>
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2  // Add gap between items (8px × 2 = 16px)
+                                    }}>
+                                        <Typography sx={{ fontSize: '1.5rem', lineHeight: 1 }}>
+                                            <CountryFlag countryCode={country.id} size={20} variant="code" />
+                                        </Typography>
                                         {country.name}
                                     </Box>
                                 </TableCell>
