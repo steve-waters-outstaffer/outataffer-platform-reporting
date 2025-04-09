@@ -302,7 +302,7 @@ const HealthInsuranceDashboard = () => {
                 data: countries.map(country => ({
                     value: summaryData[country].totalWithInsurance,
                     value2: summaryData[country].coveragePercentage,
-                    itemStyle: { color: summaryData[country].coveragePercentage >= 99 ? CustomColors.SecretGarden : CustomColors.DeepSkyBlue }
+                    itemStyle: { color: summaryData[country].coveragePercentage >= 99 ? CustomColors.MidnightBlue : CustomColors.DeepSkyBlue }
                 })),
                 label: { show: true, position: 'right', formatter: (params) => `${params.value} (${formatPercentage(summaryData[params.name].coveragePercentage)})` }
             }]
