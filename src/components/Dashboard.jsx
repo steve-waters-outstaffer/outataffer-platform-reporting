@@ -23,6 +23,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import PublicIcon from '@mui/icons-material/Public';
 
+
+
 const Dashboard = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
@@ -70,7 +72,7 @@ const Dashboard = () => {
             description: 'Country-level metrics and geographic analysis',
             icon: <PublicIcon sx={{ fontSize: 48, color: CustomColors.SlateBlue }} />,
             path: '/geographic-dashboard',
-            available: false
+            available: true
         },
 
     ];

@@ -9,6 +9,7 @@ import AddonsDashboard from './components/AddonsDashboard';
 import HealthInsuranceDashboard from './components/HealthInsuranceDashboard';
 import AuthContainer from './components/auth/AuthContainer';
 import CustomerDashboard from './components/CustomerDashboard';
+import GeographicDashboard from './components/GeographicDashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { theme } from './theme';
 
@@ -46,9 +47,13 @@ function App() {
                                     <CustomerDashboard />
                                 </ProtectedRoute>
                             } />
+                            <Route path="/geographic-dashboard" element={
+                                <ProtectedRoute>
+                                    <GeographicDashboard />
+                                </ProtectedRoute>
+                            } />
                             <Route path="/" element={<Navigate replace to="/dashboard" />} />
                         </Routes>
-
                     </AuthProvider>
                 </BrowserRouter>
             </ThemeProvider>

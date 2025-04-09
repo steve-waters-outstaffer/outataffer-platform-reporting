@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import revenue, addons, health_insurance, customers
+from routers import revenue, addons, health_insurance, customers, geography
 import logging
 
 # Configure logging
@@ -23,6 +23,7 @@ app.include_router(revenue.router, prefix="/revenue", tags=["Revenue"])
 app.include_router(addons.router, prefix="/addons", tags=["Add-ons"])
 app.include_router(health_insurance.router, prefix="/health-insurance", tags=["Health Insurance"])
 app.include_router(customers.router, prefix="/customers", tags=["Customers"])
+app.include_router(geography.router, prefix="/geography", tags=["Geography"])
 
 @app.get("/health")
 async def health():

@@ -348,3 +348,24 @@ export const fetchRevenueByCountry = async () => {
         ];
     }
 };
+
+export const fetchGeographicMetrics = async () => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/geography/countries?_=${timestamp}`);
+    } catch (error) {
+        console.warn("Geographic metrics API error, using fallback data:", error);
+        // Return a minimal structure for development/fallback
+        return {
+            snapshot_date: "2025-04-09",
+            countries: [],
+            totals: {
+                active_contracts: 0,
+                offboarding_contracts: 0,
+                approved_not_started: 0,
+                mrr: 0,
+                arr: 0
+            }
+        };
+    }
+};
