@@ -234,7 +234,7 @@ const HealthInsuranceDashboard = () => {
                     return `${item.name}: ${item.value} employees`;
                 }
             },
-            grid: { left: '20%', right: '4%', bottom: '3%', containLabel: true },
+            grid: { left: '10%', right: '10%', bottom: '3%', containLabel: true },
             xAxis: { type: 'value' },
             yAxis: {
                 type: 'category',
@@ -265,7 +265,7 @@ const HealthInsuranceDashboard = () => {
         return {
             title: { text: `${country} Health Insurance Plan Distribution`, left: 'center', top: '5%', textStyle: { color: CustomColors.UIGrey800, fontSize: 15, fontWeight: 'normal' } },
             tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: (params) => `${params[0].name}: ${params[0].value} (${params[0].value > 0 ? formatPercentage(params[0].value / processedData.countrySummary[country]?.totalWithInsurance * 100) : '0.0%'})` },
-            grid: { left: '20%', right: '4%', bottom: '3%', containLabel: true },
+            grid: { left: '10%', right: '10%', bottom: '3%', containLabel: true },
             xAxis: { type: 'value' },
             yAxis: { type: 'category', data: plans.map(plan => plan.name), axisLabel: { color: CustomColors.UIGrey700, fontSize: 11 }, inverse: true },
             series: [{
