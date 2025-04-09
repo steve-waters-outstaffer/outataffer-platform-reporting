@@ -16,9 +16,11 @@ import {
     TableBody,
     TableRow,
     TableCell,
-    Button
+    Button, Toolbar, AppBar
 } from '@mui/material';
 import * as echarts from 'echarts';
+import { useAuth } from '../contexts/AuthContext';
+import { logoutUser } from '../services/AuthService.js';
 import EChartsComponent from './Chart';
 import { CustomColors } from '../theme';
 import { useNavigate } from 'react-router-dom'; // Imported but needs to be used
@@ -33,7 +35,16 @@ const RevenueDashboard = () => {
     const [subscriptionTrend, setSubscriptionTrend] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { currentUser } = useAuth();
 
+    const handleLogout = async () => {
+        try {
+            await logoutUser();
+            navigate('/login');
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+    };
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -147,8 +158,28 @@ const RevenueDashboard = () => {
     );
 
     return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: CustomColors.UIGrey100 }}>
+        <AppBar position="static" color="secondary">
+            <Toolbar>
+                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                    Outstaffer Dashboard
+                </Typography>
+                <Typography variant="bodySmall" sx={{ mr: 2 }}>
+                    {currentUser?.email}
+                </Typography>
+                <Button
+                    variant="outlined"
+                    color="default"
+                    onClick={handleLogout}
+                    size="small"
+                >
+                    Logout
+                </Button>
+            </Toolbar>
+        </AppBar>
+
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Paper elevation={1}
+             <Paper elevation={1}
                    sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                     <Typography variant="h4" component="h1">Revenue Dashboard</Typography>
@@ -360,6 +391,7 @@ const RevenueDashboard = () => {
 
             <CountryBreakdown />
         </Container>
+       </Box>
     );
 };
 

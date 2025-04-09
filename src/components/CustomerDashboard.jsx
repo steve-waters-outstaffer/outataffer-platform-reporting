@@ -5,17 +5,19 @@ import {
     Grid,
     Paper,
     Typography,
+    AppBar,
+    Divider,
     Card,
     CardContent,
-    Divider,
     CircularProgress,
     Container,
+    Button,
     Table,
     TableHead,
     TableBody,
     TableRow,
+    Toolbar,
     TableCell,
-    Button,
     Alert
 } from '@mui/material';
 import * as echarts from 'echarts';
@@ -25,6 +27,8 @@ import { fetchLatestCustomerMetrics, fetchTopCustomers, fetchCustomerTrend } fro
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CompanyAndIndustryMetrics from './CompanyAndIndustryMetrics';
+import { useAuth } from '../contexts/AuthContext';
+import { logoutUser } from '../services/AuthService.js';
 
 const CustomerDashboard = () => {
     const navigate = useNavigate();
@@ -32,7 +36,16 @@ const CustomerDashboard = () => {
     const [topCustomers, setTopCustomers] = useState([]);
     const [customerTrend, setCustomerTrend] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [err, setError] = useState(null);
+    const { currentUser } = useAuth();
+    const handleLogout = async () => {
+        try {
+            await logoutUser();
+            navigate('/login');
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -248,6 +261,25 @@ const CustomerDashboard = () => {
     const revenueConcentration = findMetric('revenue_concentration');
 
     return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: CustomColors.UIGrey100 }}>
+            <AppBar position="static" color="secondary">
+                <Toolbar>
+                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                        Outstaffer Dashboard
+                    </Typography>
+                    <Typography variant="bodySmall" sx={{ mr: 2 }}>
+                        {currentUser?.email}
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        color="default"
+                        onClick={handleLogout}
+                        size="small"
+                    >
+                        Logout
+                    </Button>
+                </Toolbar>
+            </AppBar>
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Paper elevation={1}
                    sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -424,6 +456,7 @@ const CustomerDashboard = () => {
                 </Grid>
             </Paper>
         </Container>
+    </Box>
     );
 };
 

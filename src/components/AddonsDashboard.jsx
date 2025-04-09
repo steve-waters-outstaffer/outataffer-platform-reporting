@@ -4,23 +4,28 @@ import {
     Grid,
     Paper,
     Typography,
-    Button,
+    AppBar,
+    Divider,
+    Card,
+    CardContent,
     CircularProgress,
     Container,
+    Button,
     Table,
     TableHead,
     TableBody,
     TableRow,
+    Toolbar,
     TableCell,
-    Divider,
-    Card,
-    CardContent
+    Alert
 } from '@mui/material';
 import { CustomColors } from '../theme';
 import { fetchLatestAddonMetrics } from '../services/ApiService';
 import EChartsComponent from './Chart';
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useAuth } from '../contexts/AuthContext';
+import { logoutUser } from '../services/AuthService.js';
 
 
 
@@ -40,7 +45,15 @@ const AddonsDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
-
+    const { currentUser } = useAuth();
+    const handleLogout = async () => {
+        try {
+            await logoutUser();
+            navigate('/login');
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+    };
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -145,6 +158,25 @@ const AddonsDashboard = () => {
     }
 
     return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: CustomColors.UIGrey100 }}>
+            <AppBar position="static" color="secondary">
+                <Toolbar>
+                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                        Outstaffer Dashboard
+                    </Typography>
+                    <Typography variant="bodySmall" sx={{ mr: 2 }}>
+                        {currentUser?.email}
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        color="default"
+                        onClick={handleLogout}
+                        size="small"
+                    >
+                        Logout
+                    </Button>
+                </Toolbar>
+            </AppBar>
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Paper
                 elevation={1}
@@ -285,6 +317,7 @@ const AddonsDashboard = () => {
                 );
             })}
         </Container>
+        </Box>
     );
 };
 
