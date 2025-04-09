@@ -389,7 +389,6 @@ const RevenueDashboard = () => {
                 </Table>
             </Paper>
 
-            <CountryBreakdown />
         </Container>
        </Box>
     );
