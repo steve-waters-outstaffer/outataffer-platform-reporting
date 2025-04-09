@@ -152,10 +152,10 @@ const AddonsDashboard = () => {
             >
                 <Box>
                     <Typography variant="h4" component="h1" gutterBottom>
-                        Add-ons Overview
+                        EOR Plan and add-on breakdown
                     </Typography>
                     <Typography variant="body" color="text.secondary" gutterBottom>
-                        Subscriptions with add-on options for devices, software, and hardware as of {addonData?.[0]?.snapshot_date || 'latest'}
+                        Subscriptions and add-on options for devices, software, hardware and membership as of {addonData?.[0]?.snapshot_date || 'latest'}
                     </Typography>
                 </Box>
                 <Button
