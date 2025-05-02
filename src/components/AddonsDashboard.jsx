@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAuth } from '../contexts/AuthContext';
 import { logoutUser } from '../services/AuthService.js';
+import BetaWatermark from './BetaWatermark';
 
 
 
@@ -177,8 +178,14 @@ const AddonsDashboard = () => {
                         Logout
                     </Button>
                 </Toolbar>
+                <Box sx={{ px: 2, mb: 2 }}>
+                    <Typography variant="h4" color="text.secondary" align={"center"}>
+                        This dashboard is in beta and may display incomplete information, some data may be missing or out of date. Please do not rely on this dashboard for critical decisions or reporting purposes.
+                    </Typography>
+                </Box>
             </AppBar>
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            <BetaWatermark />
             <Paper
                 elevation={1}
                 sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}

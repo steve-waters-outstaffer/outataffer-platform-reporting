@@ -1,5 +1,6 @@
 // src/components/Dashboard.jsx
 import React from 'react';
+import BetaWatermark from './BetaWatermark';
 import { useNavigate } from 'react-router-dom';
 import {
     AppBar,
@@ -97,7 +98,7 @@ const Dashboard = () => {
                     </Button>
                 </Toolbar>
             </AppBar>
-
+            <BetaWatermark />
             <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
                 <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
                     <Typography variant="h4" component="h1" gutterBottom>
@@ -105,6 +106,10 @@ const Dashboard = () => {
                     </Typography>
                     <Typography variant="body" color="text.secondary" gutterBottom>
                         Welcome to the Outstaffer management reporting system. Select a dashboard to view detailed metrics.
+                    </Typography>
+                    <Box sx={{ mb: 2 }}></Box> {/* Add spacing between paragraphs */}
+                    <Typography variant="h4" color="text.secondary" align={"center"}>
+                        This dashboard is in beta and may display incomplete information, some data may be missing or out of date. Please do not rely on this dashboard for critical decisions or reporting purposes.
                     </Typography>
                 </Paper>
 

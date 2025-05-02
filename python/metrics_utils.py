@@ -37,7 +37,7 @@ def get_all_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
       ON ec.companyId = c.id
     WHERE (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
+      AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     df = client.query(query).to_dataframe()
@@ -80,7 +80,7 @@ def get_active_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
       AND ec.role.preferredStartDate <= '{snapshot_date}'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
+      AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     df = client.query(query).to_dataframe()
@@ -124,7 +124,7 @@ def get_offboarding_contracts(snapshot_date: datetime.date = None) -> pd.DataFra
       AND ec.role.preferredStartDate <= '{snapshot_date}'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
+      AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     df = client.query(query).to_dataframe()
@@ -166,7 +166,7 @@ def get_inactive_contracts(snapshot_date: datetime.date = None) -> pd.DataFrame:
     WHERE sm.mapped_status = 'Inactive'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
+      AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     df = client.query(query).to_dataframe()
@@ -209,7 +209,7 @@ def get_approved_not_started_contracts(snapshot_date: datetime.date = None) -> p
       AND ec.role.preferredStartDate > '{snapshot_date}'
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
       AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
-      AND ec.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
+      AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     df = client.query(query).to_dataframe()
@@ -223,18 +223,8 @@ def get_approved_not_started_contracts(snapshot_date: datetime.date = None) -> p
     return df
 
 def get_contract_fees(contract_ids: list) -> pd.DataFrame:
-    """
-    Fetch fee data for specified contracts.
-
-    Args:
-        contract_ids: List of contract IDs to fetch fees for
-
-    Returns:
-        pd.DataFrame: Contract fees data
-    """
     if not contract_ids:
-        return pd.DataFrame(columns=['contract_id', 'eor_fees', 'device_fees', 'hardware_fees',
-                                     'software_fees', 'health_fees', 'placement_fees', 'finalisation_fees'])
+        return pd.DataFrame(columns=['contract_id', 'eor_fees', 'eor_currency', 'device_fees', 'device_currency', ...])
 
     contract_ids_str = ','.join(f"'{id}'" for id in contract_ids)
     query = f"""
@@ -246,42 +236,84 @@ def get_contract_fees(contract_ids: list) -> pd.DataFrame:
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
         ), '0') AS FLOAT64) AS eor_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.employerCharges.planCharges.categoryTotals.EOR), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS eor_currency,
         CAST(IFNULL((
           SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Device.amount
           FROM UNNEST(ec.calculations) AS calc
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
         ), '0') AS FLOAT64) AS device_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Device), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS device_currency,
         CAST(IFNULL((
           SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Hardware.amount
           FROM UNNEST(ec.calculations) AS calc
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
         ), '0') AS FLOAT64) AS hardware_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Hardware), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS hardware_currency,
         CAST(IFNULL((
           SELECT calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Software.amount
           FROM UNNEST(ec.calculations) AS calc
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
         ), '0') AS FLOAT64) AS software_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.employerCharges.planCharges.categoryTotals.Software), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS software_currency,
         CAST(IFNULL((
           SELECT calc.monthlyCharges.employerCharges.healthCharges.total.amount
           FROM UNNEST(ec.calculations) AS calc
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
         ), '0') AS FLOAT64) AS health_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.employerCharges.healthCharges.total), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS health_currency,
         CAST(IFNULL((
           SELECT calc.monthlyCharges.taasCharges.totalFee.value.amount
           FROM UNNEST(ec.calculations) AS calc
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
         ), '0') AS FLOAT64) AS placement_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.taasCharges.totalFee.value), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS placement_currency,
         CAST(IFNULL((
           SELECT calc.monthlyCharges.oneOffCharges.finalisationFee.amount
           FROM UNNEST(ec.calculations) AS calc
           ORDER BY calc.calculatedAt DESC
           LIMIT 1
-        ), '0') AS FLOAT64) AS finalisation_fees
+        ), '0') AS FLOAT64) AS finalisation_fees,
+        IFNULL((
+          SELECT JSON_EXTRACT_SCALAR(TO_JSON_STRING(calc.monthlyCharges.oneOffCharges.finalisationFee), '$.currency')
+          FROM UNNEST(ec.calculations) AS calc
+          ORDER BY calc.calculatedAt DESC
+          LIMIT 1
+        ), 'AUD') AS finalisation_currency
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     WHERE ec.id IN ({contract_ids_str})
       AND ec.calculations IS NOT NULL AND ARRAY_LENGTH(ec.calculations) > 0
@@ -302,6 +334,7 @@ def get_companies() -> pd.DataFrame:
     SELECT id, companyName, demoCompany, createdAt, industry, size 
     FROM `outstaffer-app-prod.firestore_exports.companies`
     WHERE demoCompany IS NULL OR demoCompany = FALSE
+    AND id NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     companies_df = client.query(query).to_dataframe()
@@ -331,11 +364,11 @@ def get_fx_rates(target_currency: str = 'AUD') -> pd.DataFrame:
 
 def convert_fees_to_aud(contracts_df: pd.DataFrame, fx_rates_df=None) -> pd.DataFrame:
     """
-    Convert contract fees to AUD using FX rates.
+    Convert contract fees to AUD using fee-specific currency fields.
 
     Args:
-        contracts_df: DataFrame with contract data including fee columns
-        fx_rates_df: DataFrame with FX rates (will be fetched if None)
+        contracts_df: DataFrame with contract_id, fee columns (eor_fees, etc.), and currency columns (eor_currency, etc.)
+        fx_rates_df: DataFrame with FX rates (fetched if None)
 
     Returns:
         pd.DataFrame: Contracts with AUD-converted fees
@@ -343,30 +376,45 @@ def convert_fees_to_aud(contracts_df: pd.DataFrame, fx_rates_df=None) -> pd.Data
     if fx_rates_df is None:
         fx_rates_df = get_fx_rates()
 
-    # Make a copy to avoid modifying the original
     df = contracts_df.copy()
+    logger.info(f"Converting fees for {len(df)} contracts")
 
-    # Get latest FX rate for each currency
+    # Get latest FX rate per currency
     latest_fx = fx_rates_df.groupby('currency').apply(
         lambda x: x.loc[x['fx_date'].idxmax()]).reset_index(drop=True)[['currency', 'rate']]
+    logger.info(f"FX rates loaded: {latest_fx['currency'].tolist()}")
 
-    # Merge FX rates with contracts
-    df = df.merge(latest_fx, left_on='country', right_on='currency', how='left')
+    # Define fee types and their currency columns
+    fee_currency_pairs = [
+        ('eor_fees', 'eor_currency'),
+        ('device_fees', 'device_currency'),
+        ('hardware_fees', 'hardware_currency'),
+        ('software_fees', 'software_currency'),
+        ('health_fees', 'health_currency'),
+        ('placement_fees', 'placement_currency'),
+        ('finalisation_fees', 'finalisation_currency'),
+    ]
 
-    # Default to 1.0 for missing exchange rates
-    df['rate'] = df['rate'].fillna(1).astype(float)
-
-    # Apply FX conversion to all fee types
-    fee_types = ['eor_fees', 'device_fees', 'hardware_fees', 'software_fees',
-                 'health_fees', 'placement_fees', 'finalisation_fees']
-
-    for fee_type in fee_types:
-        if fee_type in df.columns:
-            df[f'{fee_type}_aud'] = df[fee_type].fillna(0) * df['rate']
+    # Convert each fee type using its currency
+    for fee_col, currency_col in fee_currency_pairs:
+        if fee_col in df.columns and currency_col in df.columns:
+            df = df.merge(
+                latest_fx[['currency', 'rate']],
+                left_on=currency_col,
+                right_on='currency',
+                how='left',
+                suffixes=('', f'_{fee_col}')
+            )
+            df[f'{fee_col}_rate'] = df['rate'].fillna(1.0).astype(float)
+            df[f'{fee_col}_aud'] = df[fee_col].fillna(0) * df[f'{fee_col}_rate']
+            df.drop(columns=['currency', 'rate', f'{fee_col}_rate'], inplace=True)
+            logger.info(f"Converted {fee_col}: {df[f'{fee_col}_aud'].sum()} AUD")
         else:
-            df[f'{fee_type}_aud'] = 0
+            df[f'{fee_col}_aud'] = 0.0
+            logger.warning(f"Missing {fee_col} or {currency_col}, setting {fee_col}_aud to 0")
 
     return df
+
 
 def get_revenue_breakdown(contracts_df: pd.DataFrame, snapshot_date: datetime.date = None) -> dict:
     """
@@ -643,6 +691,7 @@ def get_companies_with_labels() -> pd.DataFrame:
     LEFT JOIN `outstaffer-app-prod.firestore_exports.company_sizes` cs
         ON c.size = cs.id
     WHERE c.demoCompany IS NULL OR c.demoCompany = FALSE
+    AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     companies_df = client.query(query).to_dataframe()
@@ -736,6 +785,7 @@ def get_contracts_with_addon_data(contract_ids=None, snapshot_date=None):
         JOIN `outstaffer-app-prod.firestore_exports.companies` c ON ec.companyId = c.id
         JOIN `outstaffer-app-prod.lookup_tables.contract_status_mapping` cm ON ec.status = cm.contract_status
         WHERE (c.demoCompany IS NULL OR c.demoCompany = FALSE)
+        AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
           AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
           {contract_filter}
     """
@@ -1042,6 +1092,7 @@ def get_contracts_with_health_insurance_data(contracts_df, plans_df=None, client
     FROM `outstaffer-app-prod.firestore_exports.employee_contracts` ec
     WHERE ec.id IN ({contract_ids_str})
       AND (ec.__has_error__ IS NULL OR ec.__has_error__ = FALSE)
+      AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     logger.info(f"Loading health insurance data for {len(contract_ids)} contracts...")
