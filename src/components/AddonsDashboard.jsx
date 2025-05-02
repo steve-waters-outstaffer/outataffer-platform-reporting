@@ -179,7 +179,7 @@ const AddonsDashboard = () => {
                     </Button>
                 </Toolbar>
                 <Box sx={{ px: 2, mb: 2 }}>
-                    <Typography variant="h4" color="text.secondary" align={"center"}>
+                    <Typography  variant="h4" color="text.secondary" align={"center"}>
                         This dashboard is in beta and may display incomplete information, some data may be missing or out of date. Please do not rely on this dashboard for critical decisions or reporting purposes.
                     </Typography>
                 </Box>
