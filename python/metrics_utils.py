@@ -415,7 +415,6 @@ def convert_fees_to_aud(contracts_df: pd.DataFrame, fx_rates_df=None) -> pd.Data
 
     return df
 
-
 def get_revenue_breakdown(contracts_df: pd.DataFrame, snapshot_date: datetime.date = None) -> dict:
     """
     Calculate revenue breakdown from contracts.
@@ -691,7 +690,7 @@ def get_companies_with_labels() -> pd.DataFrame:
     LEFT JOIN `outstaffer-app-prod.firestore_exports.company_sizes` cs
         ON c.size = cs.id
     WHERE c.demoCompany IS NULL OR c.demoCompany = FALSE
-    AND ec.companyId NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
+    AND c.id NOT IN ('d4c82ebb-1986-4632-9686-8e72c4d07c85', 'b2affbf5-3653-429a-a7b9-bfc4e25fec7c')
     """
 
     companies_df = client.query(query).to_dataframe()
