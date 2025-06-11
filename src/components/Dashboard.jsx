@@ -55,6 +55,13 @@ const Dashboard = () => {
             available: true
         },
         {
+            title: 'Requisitions Dashboard',
+            description: 'Monthly requisition metrics and open positions',
+            icon: <BarChartIcon sx={{ fontSize: 48, color: CustomColors.DeepSkyBlue }} />,
+            path: '/requisitions-dashboard',
+            available: true
+        },
+        {
             title: 'Health Insurance Analytics',
             description: 'Health insurance uptake and distribution',
             icon: <PeopleAltIcon sx={{ fontSize: 48, color: CustomColors.Cobalt }} />,

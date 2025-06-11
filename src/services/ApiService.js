@@ -369,3 +369,24 @@ export const fetchGeographicMetrics = async () => {
         };
     }
 };
+
+// Requisition metrics endpoints
+export const fetchLatestRequisitionMetrics = async () => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/requisitions/latest?_=${timestamp}`);
+    } catch (error) {
+        console.warn('Requisition metrics API error:', error);
+        return { snapshot_month: '', countries: [], totals: {} };
+    }
+};
+
+export const fetchRequisitionTrend = async (months = 6) => {
+    try {
+        const timestamp = new Date().getTime();
+        return apiRequest(`/requisitions/trend?months=${months}&_=${timestamp}`);
+    } catch (error) {
+        console.warn('Requisition trend API error:', error);
+        return [];
+    }
+};

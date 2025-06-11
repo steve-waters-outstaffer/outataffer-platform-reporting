@@ -36,8 +36,8 @@ const CustomerDashboard = () => {
     const [customerData, setCustomerData] = useState([]);
     const [topCustomers, setTopCustomers] = useState([]);
     const [customerTrend, setCustomerTrend] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [err, setError] = useState(null);
+    const [loading, setLoading] = useState(true); // eslint-disable-line no-unused-vars
+    const [err, setError] = useState(null); // eslint-disable-line no-unused-vars
     const { currentUser } = useAuth();
     const handleLogout = async () => {
         try {
