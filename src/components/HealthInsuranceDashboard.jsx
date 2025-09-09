@@ -33,7 +33,7 @@ import { logoutUser } from '../services/AuthService.js';
 const HealthInsuranceDashboard = () => {
 
     const navigate = useNavigate();
-    const [healthData, setHealthData] = useState(null);
+    const [healthData, setHealthData] = useState(null); // eslint-disable-line no-unused-vars
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const { currentUser } = useAuth();
@@ -66,7 +66,7 @@ const HealthInsuranceDashboard = () => {
                 const processed = processHealthData(data);
                 setProcessedData(processed);
                 setLoading(false);
-            } catch (err) {
+            } catch {
                 setError("Failed to load health insurance data. Please try again later.");
                 setLoading(false);
             }

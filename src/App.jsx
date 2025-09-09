@@ -6,6 +6,7 @@ import { AuthProvider } from '/src/contexts/AuthContext';
 import Dashboard from './components/Dashboard';
 import RevenueDashboard from './components/RevenueDashboard';
 import AddonsDashboard from './components/AddonsDashboard';
+import RequisitionDashboard from './components/RequisitionDashboard';
 import HealthInsuranceDashboard from './components/HealthInsuranceDashboard';
 import AuthContainer from './components/auth/AuthContainer';
 import CustomerDashboard from './components/CustomerDashboard';
@@ -35,6 +36,11 @@ function App() {
                             <Route path="/addons-dashboard" element={
                                 <ProtectedRoute>
                                     <AddonsDashboard />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/requisitions-dashboard" element={
+                                <ProtectedRoute>
+                                    <RequisitionDashboard />
                                 </ProtectedRoute>
                             } />
                             <Route path="/health-dashboard" element={
