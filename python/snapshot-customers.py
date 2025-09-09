@@ -283,8 +283,10 @@ schema = [
     bigquery.SchemaField("rank", "INTEGER"),
 ]
 
-# Ensure consistent schema
+# Define expected columns
+expected_columns = ['snapshot_date', 'metric_type', 'id', 'label', 'count', 'value_aud', 'percentage', 'rank']
 
+# Ensure consistent schema
 for col in expected_columns:
     if col not in metrics_df.columns:
         metrics_df[col] = None  # Add missing columns
@@ -297,6 +299,12 @@ metrics_df['snapshot_date'] = pd.to_datetime(metrics_df['snapshot_date']).dt.dat
 metrics_df['metric_type'] = metrics_df['metric_type'].fillna('').astype(str)
 metrics_df['id'] = metrics_df['id'].fillna('').astype(str)
 metrics_df['label'] = metrics_df['label'].fillna('').astype(str)
+
+# Clean string data - remove newlines and extra whitespace that break CSV
+metrics_df['metric_type'] = metrics_df['metric_type'].str.replace('\n', ' ').str.replace('\r', ' ').str.strip()
+metrics_df['id'] = metrics_df['id'].str.replace('\n', ' ').str.replace('\r', ' ').str.strip()
+metrics_df['label'] = metrics_df['label'].str.replace('\n', ' ').str.replace('\r', ' ').str.strip()
+
 metrics_df['count'] = pd.to_numeric(metrics_df['count'], errors='coerce').fillna(0).astype(int)
 metrics_df['value_aud'] = pd.to_numeric(metrics_df['value_aud'], errors='coerce')
 metrics_df['percentage'] = pd.to_numeric(metrics_df['percentage'], errors='coerce')

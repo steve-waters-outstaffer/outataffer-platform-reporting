@@ -51,6 +51,15 @@ try {
     gcloud run jobs create plan-addon-metrics-job --image="gcr.io/$PROJECT_ID/$IMAGE_NAME`:latest" --region=$REGION --memory=2Gi --cpu=1 --max-retries=2 --parallelism=1 --task-timeout=3600 --set-env-vars=SCRIPT_NAME=snapshot-plan-and-addon-metrics.py
 }
 
+# Deploy Customer Metrics Job
+Write-Host "👥 Deploying customer metrics job..." -ForegroundColor Yellow
+try {
+    gcloud run jobs replace --image="gcr.io/$PROJECT_ID/$IMAGE_NAME`:latest" --region=$REGION --memory=2Gi --cpu=1 --max-retries=2 --parallelism=1 --task-timeout=3600 --set-env-vars=SCRIPT_NAME=snapshot-customers.py customers-job
+} catch {
+    Write-Host "Creating new customer metrics job..." -ForegroundColor Cyan
+    gcloud run jobs create customers-job --image="gcr.io/$PROJECT_ID/$IMAGE_NAME`:latest" --region=$REGION --memory=2Gi --cpu=1 --max-retries=2 --parallelism=1 --task-timeout=3600 --set-env-vars=SCRIPT_NAME=snapshot-customers.py
+}
+
 Write-Host "✅ Deployment complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "🔧 To set up monthly scheduling, run:" -ForegroundColor Cyan

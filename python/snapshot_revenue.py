@@ -7,7 +7,7 @@ from metrics_utils import (
     get_active_contracts, get_offboarding_contracts, get_inactive_contracts,
     get_approved_not_started_contracts, get_companies, get_revenue_breakdown,get_all_countries
 )
-from python.metrics_utils import get_all_contracts
+from metrics_utils import get_all_contracts
 from snapshot_utils import write_snapshot_to_bigquery
 import argparse
 

@@ -11,7 +11,6 @@ import AuthContainer from './components/auth/AuthContainer';
 import CustomerDashboard from './components/CustomerDashboard';
 import GeographicDashboard from './components/GeographicDashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import BetaBadge from './components/BetaBadge'; // Import the new component
 import { theme } from './theme';
 
 function App() {
@@ -19,8 +18,6 @@ function App() {
         <StyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
                 <CssBaseline />
-                {/* Add the Beta Badge here, outside of the router */}
-                <BetaBadge position="bottom-right" />
                 <BrowserRouter>
                     <AuthProvider>
                         <Routes>

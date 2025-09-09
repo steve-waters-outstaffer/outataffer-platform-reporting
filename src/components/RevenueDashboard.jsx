@@ -1,6 +1,5 @@
 // src/components/RevenueDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import BetaWatermark from './BetaWatermark';
 import {
     Box,
     Grid,
@@ -24,13 +23,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { logoutUser } from '../services/AuthService.js';
 import EChartsComponent from './Chart';
 import { CustomColors } from '../theme';
-import { useNavigate } from 'react-router-dom'; // Imported but needs to be used
+import { useNavigate } from 'react-router-dom';
 import { fetchLatestRevenueMetrics, fetchRevenueTrend, fetchSubscriptionTrend } from '../services/ApiService';
 import CountryBreakdown from './CountryBreakdown';
 import ArrowBackIcon from "@mui/icons-material/ArrowBack.js";
 
 const RevenueDashboard = () => {
-    const navigate = useNavigate(); // Define navigate here
+    const navigate = useNavigate();
     const [subscriptionData, setSubscriptionData] = useState(null);
     const [revenueTrend, setRevenueTrend] = useState([]);
     const [subscriptionTrend, setSubscriptionTrend] = useState([]);
@@ -46,6 +45,7 @@ const RevenueDashboard = () => {
             console.error("Logout error:", error);
         }
     };
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -54,8 +54,8 @@ const RevenueDashboard = () => {
 
                 const [metricsData, revTrend, subTrend] = await Promise.all([
                     fetchLatestRevenueMetrics(),
-                    fetchRevenueTrend(4),
-                    fetchSubscriptionTrend(4)
+                    fetchRevenueTrend(6),
+                    fetchSubscriptionTrend(6)
                 ]);
 
                 setSubscriptionData(metricsData);
@@ -90,28 +90,49 @@ const RevenueDashboard = () => {
         const currentMonthIndex = trendData.length - 1;
 
         return {
-            tooltip: { trigger: 'axis', formatter: params => `${params[0].name}: ${formatCurrency(params[0].value)}` },
-            grid: { left: '10%', right: '15%', bottom: '15%', top: '10%', containLabel: true },
-            xAxis: { type: 'category', boundaryGap: false, data: months, axisLabel: { color: CustomColors.UIGrey700, margin: 14 } },
-            yAxis: { type: 'value', axisLabel: { formatter: value => formatCurrency(value) } },
+            tooltip: { 
+                trigger: 'axis', 
+                formatter: params => `${params[0].name}: ${formatCurrency(params[0].value)}`,
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                borderColor: CustomColors.UIGrey300,
+                borderWidth: 1,
+                textStyle: { color: CustomColors.UIGrey700 }
+            },
+            grid: { left: '10%', right: '15%', bottom: '15%', top: '15%', containLabel: true },
+            xAxis: { 
+                type: 'category', 
+                boundaryGap: false, 
+                data: months, 
+                axisLabel: { color: CustomColors.UIGrey700, margin: 14 },
+                axisLine: { lineStyle: { color: CustomColors.UIGrey300 } },
+                axisTick: { lineStyle: { color: CustomColors.UIGrey300 } }
+            },
+            yAxis: { 
+                type: 'value', 
+                axisLabel: { formatter: value => formatCurrency(value), color: CustomColors.UIGrey700 },
+                axisLine: { lineStyle: { color: CustomColors.UIGrey300 } },
+                splitLine: { lineStyle: { color: CustomColors.UIGrey200 } }
+            },
             series: [{
                 name: 'MRR',
                 type: 'line',
                 data: values,
                 symbol: 'circle',
-                symbolSize: (value, params) => (params.dataIndex === currentMonthIndex ? 10 : 6),
-                lineStyle: { color: CustomColors.UIGrey400, width: 2 },
+                symbolSize: (value, params) => (params.dataIndex === currentMonthIndex ? 8 : 6),
+                lineStyle: { color: CustomColors.DeepSkyBlue, width: 3 },
                 itemStyle: {
-                    color: (params) => (params.dataIndex === currentMonthIndex ? CustomColors.DeepSkyBlue : CustomColors.UIGrey300),
-                    borderColor: CustomColors.UIGrey600,
-                    borderWidth: 1
+                    color: CustomColors.DeepSkyBlue,
+                    borderColor: '#ffffff',
+                    borderWidth: 2
                 },
                 areaStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(180,180,180,0.15)' },
-                        { offset: 1, color: 'rgba(180,180,180,0.02)' }
+                        { offset: 0, color: 'rgba(0, 123, 255, 0.3)' },
+                        { offset: 0.5, color: 'rgba(0, 123, 255, 0.15)' },
+                        { offset: 1, color: 'rgba(0, 123, 255, 0.05)' }
                     ])
-                }
+                },
+                smooth: 0.3
             }]
         };
     };
@@ -123,28 +144,49 @@ const RevenueDashboard = () => {
         const currentMonthIndex = trendData.length - 1;
 
         return {
-            tooltip: { trigger: 'axis', formatter: params => `${params[0].name}: ${params[0].value} subscriptions` },
-            grid: { left: '10%', right: '15%', bottom: '15%', top: '10%', containLabel: true },
-            xAxis: { type: 'category', boundaryGap: false, data: months, axisLabel: { color: CustomColors.UIGrey700, margin: 14 } },
-            yAxis: { type: 'value', axisLabel: { formatter: value => value } },
+            tooltip: { 
+                trigger: 'axis', 
+                formatter: params => `${params[0].name}: ${params[0].value} subscriptions`,
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                borderColor: CustomColors.UIGrey300,
+                borderWidth: 1,
+                textStyle: { color: CustomColors.UIGrey700 }
+            },
+            grid: { left: '10%', right: '15%', bottom: '15%', top: '15%', containLabel: true },
+            xAxis: { 
+                type: 'category', 
+                boundaryGap: false, 
+                data: months, 
+                axisLabel: { color: CustomColors.UIGrey700, margin: 14 },
+                axisLine: { lineStyle: { color: CustomColors.UIGrey300 } },
+                axisTick: { lineStyle: { color: CustomColors.UIGrey300 } }
+            },
+            yAxis: { 
+                type: 'value', 
+                axisLabel: { formatter: value => value, color: CustomColors.UIGrey700 },
+                axisLine: { lineStyle: { color: CustomColors.UIGrey300 } },
+                splitLine: { lineStyle: { color: CustomColors.UIGrey200 } }
+            },
             series: [{
                 name: 'Active Subscriptions',
                 type: 'line',
                 data: values,
                 symbol: 'circle',
-                symbolSize: (value, params) => (params.dataIndex === currentMonthIndex ? 10 : 6),
-                lineStyle: { color: CustomColors.UIGrey400, width: 2 },
+                symbolSize: (value, params) => (params.dataIndex === currentMonthIndex ? 8 : 6),
+                lineStyle: { color: CustomColors.Meadow, width: 3 },
                 itemStyle: {
-                    color: (params) => (params.dataIndex === currentMonthIndex ? CustomColors.DeepSkyBlue : CustomColors.UIGrey300),
-                    borderColor: CustomColors.UIGrey600,
-                    borderWidth: 1
+                    color: CustomColors.Meadow,
+                    borderColor: '#ffffff',
+                    borderWidth: 2
                 },
                 areaStyle: {
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(180,180,180,0.15)' },
-                        { offset: 1, color: 'rgba(180,180,180,0.02)' }
+                        { offset: 0, color: 'rgba(32, 201, 151, 0.3)' },
+                        { offset: 0.5, color: 'rgba(32, 201, 151, 0.15)' },
+                        { offset: 1, color: 'rgba(32, 201, 151, 0.05)' }
                     ])
-                }
+                },
+                smooth: 0.3
             }]
         };
     };
@@ -177,15 +219,9 @@ const RevenueDashboard = () => {
                     Logout
                 </Button>
             </Toolbar>
-            <Box sx={{ px: 2, mb: 2 }}>
-                <Typography variant="h4" color="text.secondary" align={"center"}>
-                    This dashboard is in beta and may display incomplete information, some data may be missing or out of date. Please do not rely on this dashboard for critical decisions or reporting purposes.
-                </Typography>
-            </Box>
         </AppBar>
 
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <BetaWatermark />
              <Paper elevation={1}
                    sx={{ p: 3, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
