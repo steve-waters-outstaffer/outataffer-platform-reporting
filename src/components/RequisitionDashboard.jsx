@@ -1,6 +1,7 @@
 // src/components/RequisitionDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import BetaWatermark from './BetaWatermark';
+import CountryFlag from './common/CountryFlag';
 import {
     Box,
     Grid,
@@ -80,16 +81,20 @@ const RequisitionDashboard = () => {
         const months = trendData.map(t => t.month);
         const values = trendData.map(t => t.positions);
         return {
-            tooltip: { trigger: 'axis' },
-            grid: { left: '10%', right: '15%', bottom: '15%', top: '10%', containLabel: true },
-            xAxis: { type: 'category', boundaryGap: false, data: months, axisLabel: { color: CustomColors.UIGrey700, margin: 14 } },
+            title: {
+                text: 'Approved Positions Trend',
+                left: 'center',
+                textStyle: { color: CustomColors.UIGrey800 }
+            },
+            tooltip: { trigger: 'axis', formatter: params => `${params[0].name}: ${params[0].value} positions` },
+            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+            xAxis: { type: 'category', boundaryGap: false, data: months, axisLabel: { color: CustomColors.UIGrey700 } },
             yAxis: { type: 'value' },
             series: [{
                 name: 'Approved Positions',
                 type: 'line',
                 data: values,
-                symbol: 'circle',
-                lineStyle: { color: CustomColors.UIGrey400, width: 2 },
+                smooth: true,
                 itemStyle: { color: CustomColors.DeepSkyBlue }
             }]
         };
@@ -113,6 +118,11 @@ const RequisitionDashboard = () => {
 
     const { countries = [], totals = {}, snapshot_month } = metricData || {};
 
+    // Sort countries by approved requisitions
+    const sortedCountries = [...countries].sort((a, b) =>
+        (b.metrics.approved_requisitions?.count || 0) - (a.metrics.approved_requisitions?.count || 0)
+    );
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: CustomColors.UIGrey100 }}>
             <AppBar position="static" color="secondary">
@@ -134,7 +144,7 @@ const RequisitionDashboard = () => {
                 </Toolbar>
                 <Box sx={{ px: 2, mb: 2 }}>
                     <Typography variant="h4" color="text.secondary" align={'center'}>
-                        This dashboard is in beta and may display incomplete information, some data may be missing or out of date. Please do not rely on this dashboard for critical decisions or reporting purposes.
+                        This dashboard is in beta and may display incomplete information.
                     </Typography>
                 </Box>
             </AppBar>
@@ -146,24 +156,16 @@ const RequisitionDashboard = () => {
                             Requisitions Dashboard
                         </Typography>
                         <Typography variant="body" color="text.secondary" gutterBottom>
-                            Metrics for {snapshot_month}
+                            Monthly requisition metrics for {snapshot_month}
                         </Typography>
                     </Box>
                     <Button
                         startIcon={<ArrowBackIcon fontSize="small" />}
                         onClick={() => navigate('/dashboard')}
                         sx={{
-                            fontSize: '0.725rem',
-                            px: 1,
-                            py: 0.25,
-                            minWidth: 'unset',
-                            borderRadius: '20px',
-                            border: '1px solid',
-                            borderColor: CustomColors.DeepSkyBlue,
-                            color: CustomColors.DeepSkyBlue,
-                            '&:hover': {
-                                backgroundColor: `${CustomColors.DeepSkyBlue}10`
-                            }
+                            fontSize: '0.725rem', px: 1, py: 0.25, minWidth: 'unset', borderRadius: '20px',
+                            border: '1px solid', borderColor: CustomColors.DeepSkyBlue, color: CustomColors.DeepSkyBlue,
+                            '&:hover': { backgroundColor: `${CustomColors.DeepSkyBlue}10` }
                         }}
                     >
                         Main Dashboard
@@ -172,49 +174,41 @@ const RequisitionDashboard = () => {
 
                 <Grid container spacing={3} sx={{ mb: 3 }}>
                     <Grid item xs={12} sm={6} md={3}>
-                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: CustomColors.MidnightBlue, color: 'white' }}>
+                        <Card sx={{ height: '100%', bgcolor: CustomColors.MidnightBlue, color: 'white' }}>
                             <CardContent>
-                                <Typography variant="h7" gutterBottom>
-                                    APPROVED REQUISITIONS
-                                </Typography>
+                                <Typography variant="h7" gutterBottom>APPROVED REQUISITIONS</Typography>
                                 <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1 }}>
-                                    {totals.approved_requisitions}
+                                    {totals.approved_requisitions || 0}
                                 </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
-                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Card sx={{ height: '100%'}}>
                             <CardContent>
-                                <Typography variant="h7" color="text.secondary" gutterBottom>
-                                    OPEN POSITIONS
-                                </Typography>
+                                <Typography variant="h7" color="text.secondary" gutterBottom>APPROVED POSITIONS</Typography>
                                 <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.DeepSkyBlue }}>
-                                    {totals.open_positions}
+                                    {totals.approved_positions || 0}
                                 </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
-                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Card sx={{ height: '100%' }}>
                             <CardContent>
-                                <Typography variant="h7" color="text.secondary" gutterBottom>
-                                    PROJECTED MRR
-                                </Typography>
+                                <Typography variant="h7" color="text.secondary" gutterBottom>OPEN POSITIONS</Typography>
                                 <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Meadow }}>
-                                    {formatCurrency(totals.mrr)}
+                                    {totals.open_positions || 0}
                                 </Typography>
                             </CardContent>
                         </Card>
                     </Grid>
                     <Grid item xs={12} sm={6} md={3}>
-                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <Card sx={{ height: '100%' }}>
                             <CardContent>
-                                <Typography variant="h7" color="text.secondary" gutterBottom>
-                                    PROJECTED ARR
-                                </Typography>
-                                <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Purple }}>
-                                    {formatCurrency(totals.arr)}
+                                <Typography variant="h7" color="text.secondary" gutterBottom>REJECTED REQUISITIONS</Typography>
+                                <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Red }}>
+                                    {totals.rejected_requisitions || 0}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -222,9 +216,8 @@ const RequisitionDashboard = () => {
                 </Grid>
 
                 <Grid container spacing={3} sx={{ mb: 3 }}>
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12}>
                         <Paper elevation={1} sx={{ p: 2 }}>
-                            <Typography variant="h6" gutterBottom>Positions Approved Per Month</Typography>
                             <Box sx={{ height: 380 }}><EChartsComponent option={getTrendOptions()} /></Box>
                         </Paper>
                     </Grid>
@@ -238,21 +231,33 @@ const RequisitionDashboard = () => {
                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
                                 <TableCell sx={{ fontWeight: 'bold' }}>Country</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>Approved Req.</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Approved Positions</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Approved Pos.</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>Open Positions</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Projected MRR</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Rejected Req.</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {countries.map((c) => (
+                            {sortedCountries.map((c) => (
                                 <TableRow key={c.id} hover>
-                                    <TableCell>{c.name}</TableCell>
-                                    <TableCell align="right">{c.metrics.approved_requisitions.count}</TableCell>
-                                    <TableCell align="right">{c.metrics.approved_positions.count}</TableCell>
-                                    <TableCell align="right">{c.metrics.open_positions.count}</TableCell>
-                                    <TableCell align="right">{formatCurrency(c.metrics.mrr.value_aud)}</TableCell>
+                                    <TableCell>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                            <CountryFlag countryCode={c.id} size={20} />
+                                            {c.name}
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell align="right">{c.metrics.approved_requisitions?.count || 0}</TableCell>
+                                    <TableCell align="right">{c.metrics.approved_positions?.count || 0}</TableCell>
+                                    <TableCell align="right">{c.metrics.open_positions?.count || 0}</TableCell>
+                                    <TableCell align="right">{c.metrics.rejected_requisitions?.count || 0}</TableCell>
                                 </TableRow>
                             ))}
+                            <TableRow sx={{ backgroundColor: CustomColors.UIGrey100, fontWeight: 'bold' }}>
+                                <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.approved_requisitions || 0}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.approved_positions || 0}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.open_positions || 0}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.rejected_requisitions || 0}</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </Paper>
