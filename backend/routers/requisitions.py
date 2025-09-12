@@ -28,14 +28,19 @@ async def requisitions_latest(api_key: str = Depends(verify_api_key)):
         snapshot_date = None
         countries = {}
         totals = {
+            "submitted_requisitions": 0,
+            "created_requisitions": 0,
             "approved_requisitions": 0,
             "approved_positions": 0,
             "rejected_requisitions": 0,
             "open_positions": 0,
-            "mrr": 0.0,
-            "arr": 0.0,
-            "placement_fees": 0.0,
+            "placement_fees_aud": 0.0,
+            "avg_salary_aud": 0.0
         }
+
+        # For calculating weighted average salary
+        total_approved_reqs_for_avg = 0
+        total_salary_sum = 0
 
         for row in results:
             if snapshot_date is None and row.snapshot_date:
@@ -49,7 +54,7 @@ async def requisitions_latest(api_key: str = Depends(verify_api_key)):
                     "metrics": {}
                 }
 
-            metric_type = row.metric_type.replace('_aud', '') # Normalize revenue metrics
+            metric_type = row.metric_type
 
             # Populate country-specific metrics
             countries[country_id]["metrics"][metric_type] = {
@@ -57,13 +62,30 @@ async def requisitions_latest(api_key: str = Depends(verify_api_key)):
                 "value_aud": float(row.value_aud) if row.value_aud is not None else None
             }
 
-            # Aggregate totals
-            if row.count is not None:
-                if metric_type in totals:
+            # Aggregate totals - using a safer if/elif structure
+            if metric_type in totals:
+                if row.count is not None:
                     totals[metric_type] += row.count
-            if row.value_aud is not None:
-                if metric_type in totals:
+                elif row.value_aud is not None and 'avg' not in metric_type:
                     totals[metric_type] += float(row.value_aud)
+
+            # For weighted average calculation
+            if metric_type == 'avg_salary_aud' and row.value_aud is not None:
+                approved_reqs_in_country = countries[country_id]["metrics"].get("approved_requisitions", {}).get("count", 0)
+                if approved_reqs_in_country > 0:
+                    total_salary_sum += float(row.value_aud) * approved_reqs_in_country
+                    total_approved_reqs_for_avg += approved_reqs_in_country
+
+        # Calculate the final weighted average for the total
+        if total_approved_reqs_for_avg > 0:
+            totals['avg_salary_aud'] = total_salary_sum / total_approved_reqs_for_avg
+        else:
+            # If no approved reqs, check if there's a non-zero sum from a single country case
+            if totals['avg_salary_aud'] > 0 and total_approved_reqs_for_avg == 0:
+                pass # Keep the single value
+            else:
+                totals['avg_salary_aud'] = 0
+
 
         # Convert countries dictionary to a list for the final response
         countries_list = list(countries.values())

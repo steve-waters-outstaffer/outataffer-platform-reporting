@@ -344,7 +344,7 @@ def get_companies() -> pd.DataFrame:
 
 def get_fx_rates(target_currency: str = 'AUD') -> pd.DataFrame:
     """
-    Fetch FX rates from BigQuery.
+    Fetch FX rates from BigQuery using the currency_pairs table.
 
     Args:
         target_currency: Target currency for rates (default 'AUD')
@@ -353,13 +353,19 @@ def get_fx_rates(target_currency: str = 'AUD') -> pd.DataFrame:
         pd.DataFrame: FX rates data
     """
     query = f"""
-    SELECT * FROM `outstaffer-app-prod.dashboard_metrics.fx_rates`
-    WHERE target_currency = '{target_currency}'
+    SELECT
+        currency2 AS currency,
+        CAST(REPLACE(rate, ',', '') AS FLOAT64) AS rate,
+        updatedAt AS fx_date
+    FROM
+        `outstaffer-app-prod.firestore_exports.currency_pairs`
+    WHERE
+        currency1 = '{target_currency}'
     """
 
     fx_rates_df = client.query(query).to_dataframe()
     fx_rates_df['fx_date'] = pd.to_datetime(fx_rates_df['fx_date']).dt.tz_localize(None)
-    logger.info(f"Loaded {len(fx_rates_df)} FX rates")
+    logger.info(f"Loaded {len(fx_rates_df)} FX rates from currency_pairs")
     return fx_rates_df
 
 def convert_fees_to_aud(contracts_df: pd.DataFrame, fx_rates_df=None) -> pd.DataFrame:

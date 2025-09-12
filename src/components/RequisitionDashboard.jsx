@@ -176,9 +176,9 @@ const RequisitionDashboard = () => {
                     <Grid item xs={12} sm={6} md={3}>
                         <Card sx={{ height: '100%', bgcolor: CustomColors.MidnightBlue, color: 'white' }}>
                             <CardContent>
-                                <Typography variant="h7" gutterBottom>APPROVED REQUISITIONS</Typography>
+                                <Typography variant="h7" gutterBottom>CREATED REQUISITIONS</Typography>
                                 <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1 }}>
-                                    {totals.approved_requisitions || 0}
+                                    {totals.created_requisitions || 0}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -206,9 +206,9 @@ const RequisitionDashboard = () => {
                     <Grid item xs={12} sm={6} md={3}>
                         <Card sx={{ height: '100%' }}>
                             <CardContent>
-                                <Typography variant="h7" color="text.secondary" gutterBottom>REJECTED REQUISITIONS</Typography>
-                                <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Red }}>
-                                    {totals.rejected_requisitions || 0}
+                                <Typography variant="h7" color="text.secondary" gutterBottom>AVG. APPROVED SALARY</Typography>
+                                <Typography variant="h3" component="div" sx={{ mt: 2, mb: 1, color: CustomColors.Purple }}>
+                                    {formatCurrency(totals.avg_salary_aud)}
                                 </Typography>
                             </CardContent>
                         </Card>
@@ -230,10 +230,11 @@ const RequisitionDashboard = () => {
                         <TableHead>
                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey200 }}>
                                 <TableCell sx={{ fontWeight: 'bold' }}>Country</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Approved Req.</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Approved Pos.</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Submitted</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Approved</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Rejected</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>Open Positions</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Rejected Req.</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Avg. Salary</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -245,18 +246,20 @@ const RequisitionDashboard = () => {
                                             {c.name}
                                         </Box>
                                     </TableCell>
+                                    <TableCell align="right">{c.metrics.submitted_requisitions?.count || 0}</TableCell>
                                     <TableCell align="right">{c.metrics.approved_requisitions?.count || 0}</TableCell>
-                                    <TableCell align="right">{c.metrics.approved_positions?.count || 0}</TableCell>
-                                    <TableCell align="right">{c.metrics.open_positions?.count || 0}</TableCell>
                                     <TableCell align="right">{c.metrics.rejected_requisitions?.count || 0}</TableCell>
+                                    <TableCell align="right">{c.metrics.open_positions?.count || 0}</TableCell>
+                                    <TableCell align="right">{formatCurrency(c.metrics.avg_salary_aud?.value_aud)}</TableCell>
                                 </TableRow>
                             ))}
                             <TableRow sx={{ backgroundColor: CustomColors.UIGrey100, fontWeight: 'bold' }}>
                                 <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.submitted_requisitions || 0}</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.approved_requisitions || 0}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.approved_positions || 0}</TableCell>
-                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.open_positions || 0}</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.rejected_requisitions || 0}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{totals.open_positions || 0}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 'bold' }}>{formatCurrency(totals.avg_salary_aud)}</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>

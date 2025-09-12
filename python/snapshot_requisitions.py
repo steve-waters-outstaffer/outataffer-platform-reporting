@@ -64,6 +64,7 @@ def get_requisition_data(snapshot_date):
         r.status,
         r.jobStatus,
         r.submittedAt,
+        r.createdAt,
         r.rejectedAt,
         r.basicInfo.numberOfOpenings,
         r.plan.type AS plan_type,
@@ -71,32 +72,21 @@ def get_requisition_data(snapshot_date):
         r.plan.softwareAddons,
         r.plan.membershipAddons,
         r.recruitmentFee.percentageRate.integer AS recruitment_fee_pct,
-        (SELECT value.amount FROM UNNEST(r.salary) WHERE value.period = 'YEAR' and value.currency is not null limit 1) as yearly_salary,
-        (SELECT value.currency FROM UNNEST(r.salary) WHERE value.period = 'YEAR' and value.currency is not null limit 1) as salary_currency
+        r.packageInfo.salaryRateHigh as yearly_salary,
+        r.packageInfo.salaryCurrency as salary_currency,
+        r.packageInfo.salaryRateHigh,
+        r.packageInfo.salaryCurrency,
+        r.packageInfo.salaryRatePer,
+        r.packageInfo.salaryRateLow
       FROM `outstaffer-app-prod.firestore_exports.requisitions` r
       JOIN `outstaffer-app-prod.firestore_exports.companies` c ON r.companyId = c.id
       WHERE (r.__has_error__ IS NULL OR r.__has_error__ = FALSE)
         AND (c.demoCompany IS NULL OR c.demoCompany = FALSE)
         AND r.companyId != 'd4c82ebb-1986-4632-9686-8e72c4d07c85'
-    ),
-    addon_pricing AS (
-        SELECT id, value.amount, value.currency FROM `outstaffer-app-prod.dashboard_metrics.addon_pricing`
-    ),
-    plan_pricing AS (
-        SELECT id, value.amount, value.currency FROM `outstaffer-app-prod.dashboard_metrics.plan_pricing`
     )
     SELECT
-      br.*,
-      pp.amount AS plan_amount,
-      pp.currency AS plan_currency,
-      (SELECT SUM(ap.amount) FROM UNNEST(br.hardwareAddons) AS ha JOIN addon_pricing AS ap ON ap.id = ha.key) AS hardware_amount,
-      (SELECT STRING_AGG(DISTINCT ap.currency) FROM UNNEST(br.hardwareAddons) AS ha JOIN addon_pricing AS ap ON ap.id = ha.key) AS hardware_currency,
-      (SELECT SUM(ap.amount) FROM UNNEST(br.softwareAddons) AS sa JOIN addon_pricing AS ap ON ap.id = sa) AS software_amount,
-      (SELECT STRING_AGG(DISTINCT ap.currency) FROM UNNEST(br.softwareAddons) AS sa JOIN addon_pricing AS ap ON ap.id = sa) AS software_currency,
-      (SELECT SUM(ap.amount) FROM UNNEST(br.membershipAddons) AS ma JOIN addon_pricing AS ap ON ap.id = ma) AS membership_amount,
-      (SELECT STRING_AGG(DISTINCT ap.currency) FROM UNNEST(br.membershipAddons) AS ma JOIN addon_pricing AS ap ON ap.id = ma) AS membership_currency
+      br.*
     FROM base_requisitions br
-    LEFT JOIN plan_pricing pp ON br.plan_type = pp.id
     """
     try:
         df = client.query(query).to_dataframe()
@@ -112,33 +102,44 @@ def main():
         all_countries_df = pd.DataFrame(get_all_countries())
         requisition_data_df = get_requisition_data(SNAPSHOT_DATE)
 
-        # Calculate MRR and Placement Fees in original currency
-        requisition_data_df['mrr'] = requisition_data_df[['plan_amount', 'hardware_amount', 'software_amount', 'membership_amount']].sum(axis=1)
+        # Ensure numeric types before calculations, and handle missing data
+        requisition_data_df['yearly_salary'] = pd.to_numeric(requisition_data_df['yearly_salary'], errors='coerce').fillna(0)
+        requisition_data_df['recruitment_fee_pct'] = pd.to_numeric(requisition_data_df['recruitment_fee_pct'], errors='coerce').fillna(0)
+        requisition_data_df['salaryRateLow'] = pd.to_numeric(requisition_data_df['salaryRateLow'], errors='coerce').fillna(0)
+        requisition_data_df['salaryRateHigh'] = pd.to_numeric(requisition_data_df['salaryRateHigh'], errors='coerce').fillna(0)
+
+
+        # Calculate Placement Fees in original currency
         requisition_data_df['placement_fee'] = requisition_data_df['yearly_salary'] * (requisition_data_df['recruitment_fee_pct'] / 100)
 
         # Convert to AUD
-        requisition_data_df['mrr_aud'] = requisition_data_df.apply(lambda row: convert_to_aud(row['mrr'], row['plan_currency'], fx_rates_df), axis=1)
         requisition_data_df['placement_fees_aud'] = requisition_data_df.apply(lambda row: convert_to_aud(row['placement_fee'], row['salary_currency'], fx_rates_df), axis=1)
-        requisition_data_df['arr_aud'] = requisition_data_df['mrr_aud'] * 12
+        requisition_data_df['salaryRateLow_aud'] = requisition_data_df.apply(lambda row: convert_to_aud(row['salaryRateLow'], row['salaryCurrency'], fx_rates_df), axis=1)
+        requisition_data_df['salaryRateHigh_aud'] = requisition_data_df.apply(lambda row: convert_to_aud(row['salaryRateHigh'], row['salaryCurrency'], fx_rates_df), axis=1)
+
 
         month_start_dt = datetime.combine(SNAPSHOT_DATE.replace(day=1), datetime.min.time())
         next_month_start_dt = month_start_dt + relativedelta(months=1)
 
         requisition_data_df['submittedAt'] = pd.to_datetime(requisition_data_df['submittedAt'], errors='coerce', utc=True)
+        requisition_data_df['createdAt'] = pd.to_datetime(requisition_data_df['createdAt'], errors='coerce', utc=True)
         requisition_data_df['rejectedAt'] = pd.to_datetime(requisition_data_df['rejectedAt'], errors='coerce', utc=True)
         month_start_dt = pd.to_datetime(month_start_dt, utc=True)
         next_month_start_dt = pd.to_datetime(next_month_start_dt, utc=True)
 
         # Aggregate metrics by country
         country_agg = requisition_data_df.groupby('countryCode').apply(lambda x: pd.Series({
+            'submitted_requisitions_count': x[(x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].shape[0],
+            'created_requisitions_count': x[(x['createdAt'] >= month_start_dt) & (x['createdAt'] < next_month_start_dt)].shape[0],
             'approved_requisitions_count': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].shape[0],
             'approved_positions_count': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['numberOfOpenings'].sum(),
             'rejected_requisitions_count': x[(x['status'] == 'REJECTED') & (x['rejectedAt'] >= month_start_dt) & (x['rejectedAt'] < next_month_start_dt)].shape[0],
             'open_positions_count': x[(x['status'] == 'APPROVED') & (x['jobStatus'] == 'Open')]['numberOfOpenings'].sum(),
-            'mrr_aud': x[x['status'] == 'APPROVED']['mrr_aud'].sum(),
-            'arr_aud': x[x['status'] == 'APPROVED']['arr_aud'].sum(),
-            'placement_fees_aud': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['placement_fees_aud'].sum()
-        })).reset_index()
+            'placement_fees_aud': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['placement_fees_aud'].sum(),
+            'avg_salary_aud': x[x['status'] == 'APPROVED']['salaryRateHigh_aud'].mean(),
+            'avg_salary_low_aud': x[x['status'] == 'APPROVED']['salaryRateLow_aud'].mean(),
+            'avg_salary_high_aud': x[x['status'] == 'APPROVED']['salaryRateHigh_aud'].mean(),
+        }), include_groups=False).reset_index()
 
         # Merge with all countries to ensure all are present
         merged_df = all_countries_df.merge(country_agg, how='left', on='countryCode')
@@ -149,9 +150,9 @@ def main():
         for _, row in merged_df.iterrows():
             country_code = row['countryCode']
             country_name = row['name']
-            for metric in ['approved_requisitions', 'approved_positions', 'rejected_requisitions', 'open_positions']:
+            for metric in ['submitted_requisitions', 'created_requisitions', 'approved_requisitions', 'approved_positions', 'rejected_requisitions', 'open_positions']:
                 metrics_list.append({'metric_type': metric, 'id': country_code, 'label': country_name, 'count': row[f'{metric}_count'], 'value_aud': None, 'percentage': None})
-            for metric in ['mrr_aud', 'arr_aud', 'placement_fees_aud']:
+            for metric in ['placement_fees_aud', 'avg_salary_aud', 'avg_salary_low_aud', 'avg_salary_high_aud']:
                 metrics_list.append({'metric_type': metric, 'id': country_code, 'label': country_name, 'count': None, 'value_aud': row[metric], 'percentage': None})
 
         final_df = pd.DataFrame(metrics_list)
@@ -190,4 +191,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
