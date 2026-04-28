@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/dashboards-ccc88/outstaffer-data-scripts'
+      - './python'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/dashboards-ccc88/outstaffer-data-scripts'
+images:
+  - 'gcr.io/dashboards-ccc88/outstaffer-data-scripts'
