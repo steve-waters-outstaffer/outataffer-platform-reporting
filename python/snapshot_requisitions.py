@@ -50,7 +50,12 @@ def convert_to_aud(amount, currency, fx_rates_df):
     if amount is None or pd.isna(amount):
         return 0.0
     rate = get_fx_rate(currency, fx_rates_df)
-    return float(amount) * rate
+    # --- FIX: Prevent division by zero error ---
+    if rate is None or rate == 0:
+        logger.warning(f"Invalid FX rate {rate} for {currency}, returning 0.0")
+        return 0.0
+    # --- FIX: Changed multiplication (*) to division (/) for correct conversion ---
+    return float(amount) / rate
 
 def get_requisition_data(snapshot_date):
     month_start = snapshot_date.replace(day=1)
@@ -131,18 +136,23 @@ def main():
         country_agg = requisition_data_df.groupby('countryCode').apply(lambda x: pd.Series({
             'submitted_requisitions_count': x[(x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].shape[0],
             'created_requisitions_count': x[(x['createdAt'] >= month_start_dt) & (x['createdAt'] < next_month_start_dt)].shape[0],
+
+            # --- FIX: Filter approved requisitions by month and reuse the filtered set ---
             'approved_requisitions_count': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].shape[0],
             'approved_positions_count': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['numberOfOpenings'].sum(),
             'rejected_requisitions_count': x[(x['status'] == 'REJECTED') & (x['rejectedAt'] >= month_start_dt) & (x['rejectedAt'] < next_month_start_dt)].shape[0],
             'open_positions_count': x[(x['status'] == 'APPROVED') & (x['jobStatus'] == 'Open')]['numberOfOpenings'].sum(),
             'placement_fees_aud': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['placement_fees_aud'].sum(),
-            'avg_salary_aud': x[x['status'] == 'APPROVED']['salaryRateHigh_aud'].mean(),
-            'avg_salary_low_aud': x[x['status'] == 'APPROVED']['salaryRateLow_aud'].mean(),
-            'avg_salary_high_aud': x[x['status'] == 'APPROVED']['salaryRateHigh_aud'].mean(),
+
+            # --- FIX: Calculate average salary only on requisitions approved in the current month and handle cases with zero requisitions ---
+            'avg_salary_aud': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['salaryRateHigh_aud'].mean() if not x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].empty else 0,
+            'avg_salary_low_aud': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['salaryRateLow_aud'].mean() if not x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].empty else 0,
+            'avg_salary_high_aud': x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)]['salaryRateHigh_aud'].mean() if not x[(x['status'] == 'APPROVED') & (x['submittedAt'] >= month_start_dt) & (x['submittedAt'] < next_month_start_dt)].empty else 0,
+
         }), include_groups=False).reset_index()
 
         # Merge with all countries to ensure all are present
-        merged_df = all_countries_df.merge(country_agg, how='left', on='countryCode')
+        merged_df = all_countries_df.merge(country_agg, how='left', left_on='countryCode', right_on='countryCode')
         merged_df = merged_df.fillna(0)
 
         # Transform to long format for BigQuery

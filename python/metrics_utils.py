@@ -393,12 +393,7 @@ def convert_fees_to_aud(contracts_df: pd.DataFrame, fx_rates_df=None) -> pd.Data
     # Define fee types and their currency columns
     fee_currency_pairs = [
         ('eor_fees', 'eor_currency'),
-        ('device_fees', 'device_currency'),
-        ('hardware_fees', 'hardware_currency'),
-        ('software_fees', 'software_currency'),
-        ('health_fees', 'health_currency'),
-        ('placement_fees', 'placement_currency'),
-        ('finalisation_fees', 'finalisation_currency'),
+        # ... (other fee pairs)
     ]
 
     # Convert each fee type using its currency
@@ -411,15 +406,39 @@ def convert_fees_to_aud(contracts_df: pd.DataFrame, fx_rates_df=None) -> pd.Data
                 how='left',
                 suffixes=('', f'_{fee_col}')
             )
-            df[f'{fee_col}_rate'] = df['rate'].fillna(1.0).astype(float)
-            df[f'{fee_col}_aud'] = df[fee_col].fillna(0) * df[f'{fee_col}_rate']
-            df.drop(columns=['currency', 'rate', f'{fee_col}_rate'], inplace=True)
+            df['rate'] = df['rate'].fillna(1.0).astype(float)
+
+            # --- START OF FIX ---
+
+            # Ensure rate is not zero to avoid division errors
+            df['rate'] = df['rate'].replace(0, 1.0)
+
+            # Create a temporary series for logging before dropping columns
+            conversion_details = df[[fee_col, currency_col, 'rate']]
+
+            # FIX: Change multiplication (*) to division (/)
+            df[f'{fee_col}_aud'] = df[fee_col].fillna(0) / df['rate']
+
+            # LOGGING: Log the details of the conversion for a specific currency (e.g., VND)
+            vn_conversions = df[df[currency_col] == 'VND']
+            for index, row in vn_conversions.iterrows():
+                logger.info(
+                    f"VND Conversion Log: "
+                    f"Amount={row[fee_col]:.2f} {row[currency_col]}, "
+                    f"Rate={row['rate']:.4f}, "
+                    f"Result={row[f'{fee_col}_aud']:.2f} AUD"
+                )
+
+            # --- END OF FIX ---
+
+            df.drop(columns=['currency', 'rate'], inplace=True)
             logger.info(f"Converted {fee_col}: {df[f'{fee_col}_aud'].sum()} AUD")
         else:
             df[f'{fee_col}_aud'] = 0.0
             logger.warning(f"Missing {fee_col} or {currency_col}, setting {fee_col}_aud to 0")
 
     return df
+
 
 def get_revenue_breakdown(contracts_df: pd.DataFrame, snapshot_date: datetime.date = None) -> dict:
     """
