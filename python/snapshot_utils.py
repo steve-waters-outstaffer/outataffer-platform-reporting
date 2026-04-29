@@ -32,7 +32,7 @@ def write_snapshot_to_bigquery(metrics_df, table_id, schema=None, dry_run=False)
         # Value range validation for numeric columns
         for col in metrics_df.select_dtypes(include=['number']).columns:
             max_val = metrics_df[col].max()
-            if max_val > 1e9:  # Adjust threshold as needed
+            if pd.notna(max_val) and max_val > 1e9:  # Guard against NA/NaN
                 logger.warning(f"Suspicious high value in {col}: {max_val}")
 
         # Extract snapshot date for same-day cleanup
